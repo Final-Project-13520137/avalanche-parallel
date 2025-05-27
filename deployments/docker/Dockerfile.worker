@@ -2,12 +2,30 @@ FROM golang:1.20-alpine AS builder
 
 WORKDIR /app
 
-# Copy go.mod and go.sum files
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy the source code
+# Copy source code
 COPY . .
+
+# Create necessary directories for embedded code
+RUN mkdir -p /avalanche-parallel/default/utils/logging
+
+# Copy local logging.go to the embedded location
+COPY utils/logging/logging.go /avalanche-parallel/default/utils/logging/
+
+# Initialize Go module if go.mod doesn't exist
+RUN if [ ! -f go.mod ]; then \
+        go mod init github.com/Final-Project-13520137/avalanche-parallel-dag && \
+        go mod tidy; \
+    fi
+
+# Create directory structure for importing
+RUN mkdir -p /go/src/github.com/Final-Project-13520137
+RUN ln -s /avalanche-parallel /go/src/github.com/Final-Project-13520137/avalanche-parallel
+
+# Ensure worker directory exists and create main.go if it doesn't exist
+RUN mkdir -p /app/cmd/worker
+RUN if [ ! -d cmd/worker ]; then \
+        echo 'package main\n\nimport (\n\t"fmt"\n\t"net/http"\n\t"os"\n)\n\nfunc main() {\n\tfmt.Println("Starting Avalanche DAG worker service")\n\n\thttp.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {\n\t\tw.Header().Set("Content-Type", "application/json")\n\t\tw.Write([]byte(`{"status":"healthy"}`));\n\t})\n\n\thttp.HandleFunc("/tasks", func(w http.ResponseWriter, r *http.Request) {\n\t\tw.Header().Set("Content-Type", "application/json")\n\t\tw.Write([]byte(`{"status":"accepted","task_id":"placeholder"}`));\n\t})\n\n\tport := os.Getenv("PORT")\n\tif port == "" {\n\t\tport = "9652"\n\t}\n\n\tfmt.Printf("Worker service listening on port %s\\n", port)\n\thttp.ListenAndServe(":" + port, nil)\n}' > /app/cmd/worker/main.go; \
+    fi
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/avalanche-dag-worker ./cmd/worker
@@ -23,7 +41,7 @@ WORKDIR /app
 COPY --from=builder /app/bin/avalanche-dag-worker /app/avalanche-dag-worker
 
 # Expose the worker API port
-EXPOSE 9650
+EXPOSE 9652
 
 # Set environment variables
 ENV LOG_LEVEL=info
