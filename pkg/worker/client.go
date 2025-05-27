@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/Final-Project-13520137/avalanche-parallel/default/utils/logging"
 )
 
 // Client provides communication with worker services

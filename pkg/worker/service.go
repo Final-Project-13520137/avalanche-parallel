@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/Final-Project-13520137/avalanche-parallel/default/ids"
+	"github.com/Final-Project-13520137/avalanche-parallel/default/utils/logging"
 )
 
 // Task represents a unit of work to be processed
