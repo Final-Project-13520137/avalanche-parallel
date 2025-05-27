@@ -15,13 +15,13 @@ RUN mkdir -p /go/src/github.com/Final-Project-13520137
 RUN ln -s /avalanche-parallel /go/src/github.com/Final-Project-13520137/avalanche-parallel
 
 # Build the binary
-RUN go build -o /bin/worker ./cmd/worker
+RUN go build -o /bin/avalanche-node ./cmd/avalanche
 
 # Set environment variables
 ENV PATH="/bin:${PATH}"
 
-# Expose worker API port
-EXPOSE 9652
+# Expose API and P2P ports
+EXPOSE 9650 9651
 
-# Start the worker
-CMD ["worker"] 
+# Start the node
+CMD ["avalanche-node"] 

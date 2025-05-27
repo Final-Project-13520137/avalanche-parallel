@@ -509,4 +509,123 @@ replace github.com/Final-Project-13520137/avalanche-parallel => ../avalanche-par
 
 See the [LICENSE](LICENSE) file for details.
 
+## 🐳 Running with Docker Compose
+
+We provide a complete Docker Compose setup to easily run the entire Avalanche Parallel DAG system, including:
+
+- Avalanche node with parallel DAG implementation
+- Multiple worker nodes for distributed processing
+- Prometheus for metrics collection
+- Grafana for visualization and monitoring
+
+### Prerequisites
+
+- Docker and Docker Compose installed on your system
+- At least 4GB of RAM available for the containers
+
+### Starting the System
+
+```bash
+# Clone the repository (if you haven't already)
+git clone https://github.com/your-username/avalanche-parallel-dag.git
+cd avalanche-parallel-dag
+
+# Start all services
+docker-compose up -d
+
+# Check service status
+docker-compose ps
+```
+
+### Troubleshooting Docker Compose
+
+If Docker Compose doesn't find the configuration file automatically, you can explicitly specify the path:
+
+```bash
+# Using the full path to docker-compose.yml
+docker-compose -f /path/to/docker-compose.yml up -d
+
+# For Windows PowerShell
+docker-compose -f $PWD\docker-compose.yml up -d
+
+# For Linux/macOS
+docker-compose -f $(pwd)/docker-compose.yml up -d
+```
+
+Make sure your avalanche-parallel repository is available in the parent directory, as the Docker setup mounts it as a volume.
+
+#### Windows: Verify your directory structure
+dir ..
+
+# Linux/macOS: Verify your directory structure
+ls -la ..
+```
+
+You should see `avalanche-parallel` in the parent directory.
+
+#### Setting the Path to Avalanche Parallel Repository
+
+If your avalanche-parallel repository is not in the default location (parent directory), you can specify its path using an environment variable:
+
+```bash
+# Windows
+set AVALANCHE_PARALLEL_PATH=C:\path\to\avalanche-parallel
+docker-compose up -d
+
+# Linux/macOS
+export AVALANCHE_PARALLEL_PATH=/path/to/avalanche-parallel
+docker-compose up -d
+```
+
+#### Troubleshooting Symlink Errors
+
+If you encounter symlink errors like:
+
+```
+ERROR [avalanche-node builder] RUN ln -s /avalanche-parallel /go/src/github.com/Final-Project-13520137/avalanche-parallel:
+ln: /go/src/github.com/Final-Project-13520137/avalanche-parallel: No such file or directory
+```
+
+You can try to build the containers with the `--build-arg` flag:
+
+```bash
+docker-compose build --build-arg AVALANCHE_PARALLEL_PATH=../avalanche-parallel
+```
+
+### Accessing Services
+
+Once running, you can access the following services:
+
+- **Avalanche Node API**: http://localhost:9650/ext/info
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3000 (username: admin, password: admin)
+
+### Scaling Workers
+
+You can easily scale the number of worker nodes:
+
+```bash
+# Scale to 5 worker nodes
+docker-compose up -d --scale worker=5
+```
+
+### Monitoring
+
+The Grafana dashboard provides insights into:
+
+- Vertex processing rate
+- Worker node activity
+- DAG frontier size
+- Processing time statistics
+
+### Stopping the System
+
+```bash
+# Stop all services
+docker-compose down
+
+# Stop and remove volumes (clears all data)
+docker-compose down -v
+```
+
 ---
