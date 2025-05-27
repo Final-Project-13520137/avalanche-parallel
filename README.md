@@ -2,7 +2,26 @@
 
 <div align="center">
 
-![Avalanche Parallel DAG](https://raw.githubusercontent.com/Final-Project-13520137/avalanche-parallel/main/resources/logo.png)
+```mermaid
+graph TD
+    subgraph Logo
+        A((A)):::nodeStyle
+        B((B)):::nodeStyle
+        C((C)):::nodeStyle
+        D((D)):::nodeStyle
+        E((E)):::nodeStyle
+        F((F)):::nodeStyle
+        G((G)):::nodeStyle
+        
+        A --> B & C
+        B --> D & E
+        C --> E
+        D --> F
+        E --> F & G
+    end
+    
+    classDef nodeStyle fill:#FF5000,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+```
 
 *A high-performance, scalable implementation of Directed Acyclic Graph (DAG) processing for the Avalanche consensus protocol*
 
@@ -190,13 +209,13 @@ This enhanced diagram illustrates how data flows through the system, from vertex
 
 ```mermaid
 flowchart LR
-    A[Vertices\nSubmitted] --> B[ParallelDAG\nManagement]
-    B --> C[Frontier\nVertices]
-    C --> D[Processing\nQueue]
-    D --> E[Processor\nThreads]
-    E --> F[Worker Pool\nLoad Balancer]
-    F --> G[Worker Nodes\nDistributed]
-    G --> H[Results &\nConsensus]
+    A[Vertices Submitted] --> B[ParallelDAG Management]
+    B --> C[Frontier Vertices]
+    C --> D[Processing Queue]
+    D --> E[Processor Threads]
+    E --> F[Worker Pool Load Balancer]
+    F --> G[Worker Nodes Distributed]
+    G --> H[Results & Consensus]
     
     style D fill:#f9f7ed,stroke:#333,stroke-width:1px
     style E fill:#f0f7f9,stroke:#333,stroke-width:1px
