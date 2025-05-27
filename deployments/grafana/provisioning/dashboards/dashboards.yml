@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: 'Avalanche'
+  - name: 'AvalancheParallelDag'
     orgId: 1
-    folder: ''
+    folder: 'Avalanche'
     type: file
     disableDeletion: false
     editable: true
