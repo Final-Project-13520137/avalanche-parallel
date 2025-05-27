@@ -1,54 +1,27 @@
-FROM golang:1.20-alpine AS builder
+FROM golang:1.19-alpine
 
+# Install build dependencies
+RUN apk add --no-cache build-base git curl
+
+# Set working directory
 WORKDIR /app
 
 # Copy source code
 COPY . .
 
-# Create necessary directories for embedded code
-RUN mkdir -p /avalanche-parallel/default/utils/logging
-
-# Copy local logging.go to the embedded location
-COPY utils/logging/logging.go /avalanche-parallel/default/utils/logging/
-
-# Initialize Go module if go.mod doesn't exist
-RUN if [ ! -f go.mod ]; then \
-        go mod init github.com/Final-Project-13520137/avalanche-parallel-dag && \
-        go mod tidy; \
-    fi
-
-# Create directory structure for importing
+# Add avalanche-parallel as a volume
+ARG AVALANCHE_PARALLEL_PATH
 RUN mkdir -p /go/src/github.com/Final-Project-13520137
 RUN ln -s /avalanche-parallel /go/src/github.com/Final-Project-13520137/avalanche-parallel
 
-# Build the application
-RUN mkdir -p /app/cmd/avalanche
-RUN if [ ! -d cmd/avalanche ]; then \
-        echo 'package main\n\nimport (\n\t"fmt"\n)\n\nfunc main() {\n\tfmt.Println("Starting Avalanche node with parallel DAG")\n\tfmt.Println("Avalanche node with parallel DAG started!")\n\tfmt.Println("Listening on port 9650...")\n\tselect {}\n}' > /app/cmd/avalanche/main.go; \
-    fi
-
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/avalanche-node ./cmd/avalanche
-
-# Create a minimal image
-FROM alpine:3.18
-
-RUN apk add --no-cache ca-certificates curl
-
-WORKDIR /app
-
-# Copy the binary from the builder stage
-COPY --from=builder /app/bin/avalanche-node /app/avalanche-node
-
-# Expose the Avalanche API and P2P ports
-EXPOSE 9650 9651
+# Build the binary
+RUN go build -o /bin/avalanche-node ./cmd/avalanche
 
 # Set environment variables
-ENV NETWORK=local
-ENV LOG_LEVEL=info
-ENV MAX_PROCESSING_THREADS=4
+ENV PATH="/bin:${PATH}"
 
-# Create volume for node data
-VOLUME /root/.avalanchego
+# Expose API and P2P ports
+EXPOSE 9650 9651
 
-# Run the node
-ENTRYPOINT ["/app/avalanche-node"] 
+# Start the node
+CMD ["avalanche-node"] 

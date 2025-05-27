@@ -1,3 +1,5 @@
+# Create Docker Compose file
+$content = @'
 version: '3.8'
 
 services:
@@ -37,9 +39,6 @@ services:
       dockerfile: deployments/docker/Dockerfile.worker
       args:
         - AVALANCHE_PARALLEL_PATH=../avalanche-parallel
-    # Gunakan scale command alih-alih deploy untuk menghindari masalah
-    # dengan Docker Compose versi yang lebih lama
-    # docker-compose up -d --scale worker=3
     environment:
       - LOG_LEVEL=info
       - PORT=9652
@@ -101,4 +100,10 @@ volumes:
 
 networks:
   avalanche-network:
-    driver: bridge 
+    driver: bridge
+'@
+
+# Write content to file
+$content | Set-Content -Path docker-compose.yml
+
+Write-Host "docker-compose.yml created successfully!" 

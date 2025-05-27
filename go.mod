@@ -1,14 +1,12 @@
 module github.com/Final-Project-13520137/avalanche-parallel-dag
 
-go 1.20
+go 1.19
 
 require (
-	github.com/Final-Project-13520137/avalanche-parallel/default v0.0.0-00010101000000-000000000000
+	github.com/Final-Project-13520137/avalanche-parallel v0.0.0-00010101000000-000000000000
 )
 
-replace github.com/Final-Project-13520137/avalanche-parallel/default => ../avalanche-parallel/default
-// Untuk mendukung lokasi di dalam Docker
-replace github.com/Final-Project-13520137/avalanche-parallel => /go/src/github.com/Final-Project-13520137/avalanche-parallel
+replace github.com/Final-Project-13520137/avalanche-parallel => ../avalanche-parallel
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

@@ -37,9 +37,6 @@ services:
       dockerfile: deployments/docker/Dockerfile.worker
       args:
         - AVALANCHE_PARALLEL_PATH=../avalanche-parallel
-    # Gunakan scale command alih-alih deploy untuk menghindari masalah
-    # dengan Docker Compose versi yang lebih lama
-    # docker-compose up -d --scale worker=3
     environment:
       - LOG_LEVEL=info
       - PORT=9652
