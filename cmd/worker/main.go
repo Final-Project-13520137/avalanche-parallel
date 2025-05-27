@@ -10,9 +10,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/avalanchego/version"
+	"github.com/Final-Project-13520137/avalanche-parallel/default/utils/logging"
+	"github.com/Final-Project-13520137/avalanche-parallel/default/version"
 	"github.com/avalanche-parallel-dag/pkg/worker"
 )
 

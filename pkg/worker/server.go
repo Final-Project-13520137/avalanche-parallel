@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/Final-Project-13520137/avalanche-parallel/default/utils/logging"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )

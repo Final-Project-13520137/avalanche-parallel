@@ -42,6 +42,15 @@ The parallel DAG implementation provides significant performance improvements ov
 - Linear scaling with additional worker nodes up to cluster capacity
 - Reduced latency for transaction confirmation
 
+## Benchmark
+
+You can benchmark the DAG processing performance:
+
+```bash
+# Run the benchmark with 1000 vertices and 4 threads
+go run ./cmd/benchmark -vertices=1000 -threads=4 -iterations=10
+```
+
 ## Usage
 
 To use the parallel DAG implementation:
@@ -49,7 +58,7 @@ To use the parallel DAG implementation:
 ```go
 import (
     "github.com/avalanche-parallel-dag/pkg/consensus"
-    "github.com/ava-labs/avalanchego/utils/logging"
+    "github.com/Final-Project-13520137/avalanche-parallel/default/utils/logging"
 )
 
 // Create a parallel engine
@@ -69,6 +78,20 @@ Worker nodes can be configured using environment variables:
 - `LOG_LEVEL`: Logging level (default: info)
 - `MAX_PROCESSING_THREADS`: Number of processing threads per worker (default: 4)
 - `MAX_WORKERS`: Maximum number of worker instances (default: 4)
+
+## Dependencies
+
+This project depends on the local avalanche-parallel codebase. Make sure it's available at the relative path:
+
+```
+../avalanche-parallel
+```
+
+The go.mod file includes a replace directive to handle this dependency:
+
+```
+replace github.com/Final-Project-13520137/avalanche-parallel => ../avalanche-parallel
+```
 
 ## License
 

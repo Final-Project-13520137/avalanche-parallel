@@ -3,10 +3,12 @@ module github.com/avalanche-parallel-dag
 go 1.20
 
 require (
-	github.com/ava-labs/avalanchego v1.10.15
+	github.com/Final-Project-13520137/avalanche-parallel v0.0.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 )
+
+replace github.com/Final-Project-13520137/avalanche-parallel => ../avalanche-parallel
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
