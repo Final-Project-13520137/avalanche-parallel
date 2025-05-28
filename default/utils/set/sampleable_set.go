@@ -6,10 +6,10 @@ package set
 import (
 	"bytes"
 	"encoding/json"
-	"slices"
 
 	"github.com/ava-labs/avalanchego/utils"
 	"github.com/ava-labs/avalanchego/utils/sampler"
+	"github.com/ava-labs/avalanchego/utils/slices"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	avajson "github.com/ava-labs/avalanchego/utils/json"
@@ -107,9 +107,8 @@ func (s *SampleableSet[T]) Remove(elements ...T) {
 
 // Clear empties this set
 func (s *SampleableSet[T]) Clear() {
-	clear(s.indices)
-	clear(s.elements)
-	s.elements = s.elements[:0]
+	s.indices = make(map[T]int, len(s.indices))
+	s.elements = make([]T, 0, cap(s.elements))
 }
 
 // List converts this set into a list
@@ -170,8 +169,14 @@ func (s *SampleableSet[_]) MarshalJSON() ([]byte, error) {
 			return nil, err
 		}
 	}
-	// Sort for determinism
-	slices.SortFunc(elementBytes, bytes.Compare)
+	// Sort for determinism - manual sort for Go 1.18 compatibility
+	for i := 0; i < len(elementBytes); i++ {
+		for j := i + 1; j < len(elementBytes); j++ {
+			if bytes.Compare(elementBytes[i], elementBytes[j]) > 0 {
+				elementBytes[i], elementBytes[j] = elementBytes[j], elementBytes[i]
+			}
+		}
+	}
 
 	// Build the JSON
 	var (
@@ -230,4 +235,4 @@ func (s *SampleableSet[T]) remove(e T) {
 	delete(s.indices, e)
 	s.elements[lastIndex] = utils.Zero[T]()
 	s.elements = s.elements[:lastIndex]
-}
+} 

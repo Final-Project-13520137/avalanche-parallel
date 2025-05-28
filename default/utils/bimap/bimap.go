@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"golang.org/x/exp/maps"
+	"github.com/ava-labs/avalanchego/utils/maps"
 
 	"github.com/ava-labs/avalanchego/utils"
 )

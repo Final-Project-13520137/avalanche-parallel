@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"golang.org/x/exp/maps"
+	"github.com/ava-labs/avalanchego/utils/maps"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 

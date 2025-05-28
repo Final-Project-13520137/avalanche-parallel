@@ -3,9 +3,19 @@
 
 package sampler
 
-type defaultMap map[uint64]uint64
+import (
+	"errors"
+	"math"
+)
 
-func (m defaultMap) get(key uint64, defaultVal uint64) uint64 {
+var (
+	errOutOfRange      = errors.New("out of range")
+	errInvalidArgument = errors.New("invalid argument")
+)
+
+type defaultMap map[int]int
+
+func (m defaultMap) get(key, defaultVal int) int {
 	if val, ok := m[key]; ok {
 		return val
 	}
@@ -15,55 +25,76 @@ func (m defaultMap) get(key uint64, defaultVal uint64) uint64 {
 // uniformReplacer allows for sampling over a uniform distribution without
 // replacement.
 //
-// Sampling is performed by lazily performing an array shuffle of the array
-// [0, 1, ..., length - 1]. By performing the first count swaps of this shuffle,
-// we can create an array of length count with elements sampled with uniform
-// probability.
+// Sampling is performed by lazily performing an array mapping. By performing
+// this lazily, initialization time can be significantly reduced.
 //
-// Initialization takes O(1) time.
-//
-// Sampling is performed in O(count) time and O(count) space.
+// Initialization takes O(1) time
+// Sampling is performed in O(1) time
 type uniformReplacer struct {
-	rng        *rng
-	length     uint64
-	drawn      defaultMap
-	drawsCount uint64
+	rng        *mathRNG
+	seededRNG  *seededRNG
+	length     int
+	drawn      int
+	replacement defaultMap
 }
 
-func (s *uniformReplacer) Initialize(length uint64) {
+func (s *uniformReplacer) Initialize(length int) error {
+	if length <= 0 {
+		return errInvalidArgument
+	}
+	if length > math.MaxInt32 {
+		return errInvalidArgument
+	}
+
 	s.length = length
-	s.drawn = make(defaultMap)
-	s.drawsCount = 0
+	s.drawn = 0
+	
+	// For Go 1.18 compatibility, initialize an empty map instead of using clear
+	s.replacement = make(defaultMap)
+	return nil
 }
 
-func (s *uniformReplacer) Sample(count int) ([]uint64, bool) {
-	s.Reset()
+func (s *uniformReplacer) Sample(count int) ([]int, error) {
+	if count <= 0 {
+		return nil, nil
+	}
+	if s.drawn+count > s.length {
+		return nil, errOutOfRange
+	}
 
-	results := make([]uint64, count)
+	results := make([]int, count)
 	for i := 0; i < count; i++ {
-		ret, hasNext := s.Next()
-		if !hasNext {
-			return nil, false
+		ret, err := s.nextInt()
+		if err != nil {
+			return nil, err
 		}
 		results[i] = ret
 	}
-	return results, true
+	return results, nil
+}
+
+func (s *uniformReplacer) nextInt() (int, error) {
+	index := s.rng.Intn(s.length - s.drawn)
+	ret := s.replacement.get(index, index)
+
+	replacementIndex := s.length - s.drawn - 1
+	replacementVal := s.replacement.get(replacementIndex, replacementIndex)
+
+	s.replacement[index] = replacementVal
+	s.drawn++
+	return ret, nil
 }
 
 func (s *uniformReplacer) Reset() {
-	clear(s.drawn)
-	s.drawsCount = 0
+	// For Go 1.18 compatibility, create a new map rather than using clear
+	s.replacement = make(defaultMap)
+	s.drawn = 0
 }
 
-func (s *uniformReplacer) Next() (uint64, bool) {
-	if s.drawsCount >= s.length {
-		return 0, false
+func (s *uniformReplacer) SetSeed(seed int64) {
+	if s.seededRNG == nil {
+		s.seededRNG = &seededRNG{rng: NewRNG()}
 	}
-
-	draw := s.rng.Uint64Inclusive(s.length-1-s.drawsCount) + s.drawsCount
-	ret := s.drawn.get(draw, draw)
-	s.drawn[draw] = s.drawn.get(s.drawsCount, s.drawsCount)
-	s.drawsCount++
-
-	return ret, true
-}
+	s.rng = s.seededRNG.rng
+	s.seededRNG.Seed(seed)
+} 
