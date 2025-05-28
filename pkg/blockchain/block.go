@@ -7,22 +7,21 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/Final-Project-13520137/avalanche-parallel/default/ids"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/snow/choices"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/snow/consensus/avalanche"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/snow/consensus/snowstorm"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/choices"
+	"github.com/ava-labs/avalanchego/snow/consensus/avalanche"
+	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm"
 )
 
 // Block represents a block in the blockchain, implementing the ParallelVertex interface
 type Block struct {
 	ID_          ids.ID          `json:"id"`
 	ParentIDs    []ids.ID        `json:"parentIDs"`
-	Height       uint64          `json:"height"`
-	Timestamp    int64           `json:"timestamp"`
+	Height_      uint64          `json:"height"`
+	Timestamp_   int64           `json:"timestamp"`
 	Transactions []*Transaction  `json:"transactions"`
 	status       choices.Status  `json:"status"`
 	bytes        []byte          `json:"bytes"`
@@ -33,8 +32,8 @@ func NewBlock(parentIDs []ids.ID, transactions []*Transaction, height uint64) (*
 	block := &Block{
 		ParentIDs:    parentIDs,
 		Transactions: transactions,
-		Height:       height,
-		Timestamp:    time.Now().UnixNano(),
+		Height_:      height,
+		Timestamp_:   time.Now().UnixNano(),
 		status:       choices.Processing,
 	}
 
@@ -44,7 +43,11 @@ func NewBlock(parentIDs []ids.ID, transactions []*Transaction, height uint64) (*
 		return nil, err
 	}
 	block.bytes = bytes
-	block.ID_ = ids.ID(ids.NewID(bytes))
+	
+	// Create ID using SHA-256 hash of the bytes
+	hasher := sha256.New()
+	hasher.Write(bytes)
+	copy(block.ID_[:], hasher.Sum(nil))
 
 	return block, nil
 }
@@ -87,14 +90,16 @@ func (b *Block) Status() choices.Status {
 	return b.status
 }
 
-// Parent returns the parent block IDs
-func (b *Block) Parents() ([]ids.ID, error) {
-	return b.ParentIDs, nil
+// Parents returns the parent block IDs
+func (b *Block) Parents() ([]avalanche.Vertex, error) {
+	// In a real implementation, you would fetch the actual parent blocks
+	// For now, we'll return empty to simplify
+	return []avalanche.Vertex{}, nil
 }
 
 // Height returns the block height
 func (b *Block) Height() (uint64, error) {
-	return b.Height, nil
+	return b.Height_, nil
 }
 
 // Bytes returns the byte representation of the block
@@ -129,11 +134,11 @@ func (b *Block) generateBytes() ([]byte, error) {
 	// In a real implementation, we would use a more sophisticated encoding
 	
 	// Allocate buffer for height (8 bytes) + parent count (8 bytes) + parent IDs + tx count (8 bytes)
-	parentIDsSize := len(b.ParentIDs) * ids.IDLen
+	parentIDsSize := len(b.ParentIDs) * 32 // Using 32 bytes for each ID
 	buffer := make([]byte, 8+8+parentIDsSize+8)
 	
 	// Add height
-	binary.BigEndian.PutUint64(buffer[:8], b.Height)
+	binary.BigEndian.PutUint64(buffer[:8], b.Height_)
 	
 	// Add parent count
 	binary.BigEndian.PutUint64(buffer[8:16], uint64(len(b.ParentIDs)))
@@ -141,8 +146,8 @@ func (b *Block) generateBytes() ([]byte, error) {
 	// Add parent IDs
 	offset := 16
 	for _, parentID := range b.ParentIDs {
-		copy(buffer[offset:offset+ids.IDLen], parentID[:])
-		offset += ids.IDLen
+		copy(buffer[offset:offset+32], parentID[:])
+		offset += 32
 	}
 	
 	// Add transaction count
@@ -153,17 +158,10 @@ func (b *Block) generateBytes() ([]byte, error) {
 
 // GetProcessingPriority returns the block's processing priority
 func (b *Block) GetProcessingPriority() uint64 {
-	return b.Height
-}
-
-// Parents returns the parent vertices of this block
-func (b *Block) Parents() ([]avalanche.Vertex, error) {
-	// In a real implementation, you would fetch the actual parent blocks
-	// For now, we'll return empty to simplify
-	return []avalanche.Vertex{}, nil
+	return b.Height_
 }
 
 // Timestamp returns the timestamp of this block
 func (b *Block) Timestamp() (int64, error) {
-	return b.Timestamp, nil
+	return b.Timestamp_, nil
 } 

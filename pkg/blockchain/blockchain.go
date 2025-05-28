@@ -9,8 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Final-Project-13520137/avalanche-parallel/default/ids"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/utils/logging"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 )
 
 // Blockchain manages the chain of blocks and transaction processing
@@ -77,7 +78,7 @@ func (bc *Blockchain) AddTransaction(tx *Transaction) error {
 
 	// Add to pool
 	bc.txPool[tx.ID()] = tx
-	bc.logger.Info("Added transaction %s to pool", tx.ID())
+	bc.logger.Info("Added transaction to pool", zap.String("txID", tx.ID().String()))
 
 	return nil
 }
@@ -98,8 +99,8 @@ func (bc *Blockchain) CreateBlock(parentIDs []ids.ID, maxTxs int) (*Block, error
 	height := bc.currentHeight + 1
 	for _, parentID := range parentIDs {
 		parent := bc.blocks[parentID]
-		if parent.Height >= bc.currentHeight {
-			height = parent.Height + 1
+		if parent.Height_ >= bc.currentHeight {
+			height = parent.Height_ + 1
 		}
 	}
 
@@ -135,8 +136,10 @@ func (bc *Blockchain) CreateBlock(parentIDs []ids.ID, maxTxs int) (*Block, error
 	}
 	bc.blocksByHeight[height] = append(bc.blocksByHeight[height], block)
 
-	bc.logger.Info("Created block %s at height %d with %d transactions", 
-		block.ID(), height, len(selectedTxs))
+	bc.logger.Info("Created block with transactions", 
+		zap.String("blockID", block.ID().String()), 
+		zap.Uint64("height", height), 
+		zap.Int("txCount", len(selectedTxs)))
 
 	return block, nil
 }
@@ -162,11 +165,11 @@ func (bc *Blockchain) SubmitBlock(block *Block) error {
 	bc.latestBlocks[block.ID()] = block
 
 	// Update blockchain height if needed
-	if block.Height > bc.currentHeight {
-		bc.currentHeight = block.Height
+	if block.Height_ > bc.currentHeight {
+		bc.currentHeight = block.Height_
 	}
 
-	bc.logger.Info("Submitted block %s for processing", block.ID())
+	bc.logger.Info("Submitted block for processing", zap.String("blockID", block.ID().String()))
 	return nil
 }
 
@@ -229,7 +232,9 @@ func (bc *Blockchain) ProcessPendingBlocks() error {
 
 	for result := range results {
 		if result.err != nil {
-			bc.logger.Error("Failed to process block %s: %s", result.blockID, result.err)
+			bc.logger.Error("Failed to process block", 
+				zap.String("blockID", result.blockID.String()),
+				zap.Error(result.err))
 			// Could implement rejection here
 			continue
 		}
@@ -238,7 +243,9 @@ func (bc *Blockchain) ProcessPendingBlocks() error {
 		block := bc.blocks[result.blockID]
 		bc.acceptedBlocks[result.blockID] = block
 		delete(bc.pendingBlocks, result.blockID)
-		bc.logger.Info("Accepted block %s at height %d", result.blockID, block.Height)
+		bc.logger.Info("Accepted block", 
+			zap.String("blockID", result.blockID.String()),
+			zap.Uint64("height", block.Height_))
 	}
 
 	return nil
@@ -255,7 +262,7 @@ func (bc *Blockchain) RunConsensus(ctx context.Context, interval time.Duration) 
 			return
 		case <-ticker.C:
 			if err := bc.ProcessPendingBlocks(); err != nil {
-				bc.logger.Error("Error processing pending blocks: %s", err)
+				bc.logger.Error("Error processing pending blocks", zap.Error(err))
 			}
 		}
 	}

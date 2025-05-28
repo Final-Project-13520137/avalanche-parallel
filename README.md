@@ -622,6 +622,59 @@ This means the Go version specified in your go.mod file is higher than the versi
 
 After changing the Go version, run `go mod tidy` again to update dependencies.
 
+#### Module Path Mismatch
+
+If you encounter an error like:
+
+```
+module declares its path as: github.com/ava-labs/avalanchego
+but was required as: github.com/Final-Project-13520137/avalanche-parallel/default
+```
+
+This is a module path mismatch issue. The Avalanche code in the `default` directory declares itself as `github.com/ava-labs/avalanchego`, but our code is trying to import it as `github.com/Final-Project-13520137/avalanche-parallel/default`.
+
+To fix this issue:
+
+1. **Using the import path fix script:**
+   
+   ```bash
+   # Linux/macOS/WSL
+   chmod +x fix-imports.sh
+   ./fix-imports.sh
+   
+   # Windows
+   .\fix-imports.ps1
+   ```
+
+   These scripts will:
+   - Update all import paths in your code
+   - Modify the `go.mod` file to use the correct replacement
+   - Run `go mod tidy` to update dependencies
+
+2. **Manually updating import paths:**
+   
+   If you prefer to fix the issue manually:
+   
+   - Edit your Go files to change import paths from:
+     ```go
+     import "github.com/Final-Project-13520137/avalanche-parallel/default/..."
+     ```
+     to:
+     ```go
+     import "github.com/ava-labs/avalanchego/..."
+     ```
+     
+   - Update your `go.mod` file to change:
+     ```
+     replace github.com/Final-Project-13520137/avalanche-parallel => ./default
+     ```
+     to:
+     ```
+     replace github.com/ava-labs/avalanchego => ./default
+     ```
+
+After making these changes, run `go mod tidy` to update dependencies.
+
 ## 🧪 Running Tests
 
 This repository includes comprehensive tests for the Avalanche Parallel Blockchain implementation, covering various aspects of blockchain functionality with a focus on transaction handling and parallel processing.
@@ -884,3 +937,48 @@ docker-compose down -v
 ```
 
 ---
+
+## Module Path and Import Fixes
+
+If you encounter module path or import path errors, we've provided scripts to help fix them. Common issues include:
+
+1. **Module path mismatch**: If you see errors like "module declares its path as: github.com/ava-labs/avalanchego but was required as: github.com/Final-Project-13520137/avalanche-parallel/default", you need to fix the import paths in your code.
+
+2. **Import path errors**: If your code tries to import from "github.com/Final-Project-13520137/avalanche-parallel/default" but the code actually declares "github.com/ava-labs/avalanchego", you'll need to update the imports.
+
+### Fixing with Provided Scripts
+
+Run one of these scripts to automatically fix common import path issues:
+
+#### Windows (PowerShell):
+```powershell
+# Fix all import paths in the project
+.\fix-all-imports.ps1
+```
+
+#### Linux/macOS:
+```bash
+# Fix all import paths in the project
+./fix-all-imports.sh
+```
+
+### Manual Fixes
+
+If you prefer to fix imports manually, follow these steps:
+
+1. Update the go.mod replace directive:
+   ```
+   replace github.com/ava-labs/avalanchego => ./default
+   ```
+
+2. In your code, use imports that point to the actual module path:
+   ```go
+   import (
+       "github.com/ava-labs/avalanchego/ids"
+       "github.com/ava-labs/avalanchego/utils/logging"
+   )
+   ```
+
+3. Run `go mod tidy` after making changes.
+
+This will ensure that your code correctly references the Avalanche modules regardless of where they're physically located in your project.

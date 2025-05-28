@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Final-Project-13520137/avalanche-parallel/default/ids"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/utils/logging"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

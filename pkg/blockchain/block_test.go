@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Final-Project-13520137/avalanche-parallel/default/ids"
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/assert"
 )
 

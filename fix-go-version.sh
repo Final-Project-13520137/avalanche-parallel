@@ -1,39 +1,27 @@
 #!/bin/bash
 
-# Script to fix Go version compatibility issues in go.mod
-echo "Go Version Compatibility Fixer"
-echo "================================"
+echo -e "\e[1;36mGo Version Fix Script\e[0m"
+echo -e "\e[1;36m====================\e[0m"
+echo -e "This script fixes Go version and toolchain issues in go.mod\n"
 
-# Check installed Go version
-GO_VERSION=$(go version | grep -oE 'go[0-9]+\.[0-9]+' | sed 's/go//')
-echo "Detected Go version: $GO_VERSION"
+# Backup original go.mod
+echo -e "\e[1;33mCreating backup of go.mod...\e[0m"
+cp go.mod go.mod.bak
 
-# Get current go.mod version
-if [ -f "go.mod" ]; then
-    MOD_GO_VERSION=$(grep -oE 'go [0-9]+\.[0-9]+' go.mod | sed 's/go //')
-    echo "Current go.mod Go version: $MOD_GO_VERSION"
-    
-    # Compare versions
-    if (( $(echo "$MOD_GO_VERSION > $GO_VERSION" | bc -l) )); then
-        echo "Updating go.mod to use Go $GO_VERSION instead of Go $MOD_GO_VERSION..."
-        sed -i "s/go $MOD_GO_VERSION/go $GO_VERSION/" go.mod
-        echo "✓ go.mod updated successfully"
-        
-        # Run go mod tidy to update dependencies
-        echo "Running go mod tidy..."
-        go mod tidy
-        if [ $? -eq 0 ]; then
-            echo "✓ Dependencies updated successfully"
-        else
-            echo "! There was an issue updating dependencies"
-            echo "Please check the error messages above"
-        fi
-    else
-        echo "No version update needed. go.mod already uses Go $MOD_GO_VERSION"
-    fi
+# Fix the Go version (change 1.23.9 to a proper format like 1.18)
+echo -e "\e[1;32mFixing Go version...\e[0m"
+sed -i 's/go 1.23.9/go 1.18/g' go.mod
+
+# Remove the toolchain directive
+echo -e "\e[1;32mRemoving toolchain directive...\e[0m"
+sed -i '/toolchain go1.24.3/d' go.mod
+
+# Run go mod tidy to clean up dependencies
+echo -e "\n\e[1;32mRunning go mod tidy...\e[0m"
+if go mod tidy; then
+    echo -e "\n\e[1;32m✅ Success! Go version fixed.\e[0m"
 else
-    echo "! go.mod file not found in the current directory"
-    exit 1
+    echo -e "\n\e[1;33m⚠️ go mod tidy completed with warnings. Check the output above.\e[0m"
 fi
 
-echo "Done!" 
+echo -e "\n\e[1;36mTo restore the original go.mod, run: cp go.mod.bak go.mod\e[0m" 

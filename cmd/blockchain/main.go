@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Final-Project-13520137/avalanche-parallel/default/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain"
 )
 

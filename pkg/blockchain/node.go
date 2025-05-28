@@ -11,8 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Final-Project-13520137/avalanche-parallel/default/ids"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/utils/logging"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 )
 
 const (
@@ -37,6 +38,7 @@ type Node struct {
 	server     *http.Server
 	config     NodeConfig
 	running    bool
+	shutdownCtxCancel context.CancelFunc
 }
 
 // NewNode creates a new blockchain node
@@ -70,6 +72,7 @@ func (n *Node) Start() error {
 	// Start blockchain consensus
 	ctx, cancel := context.WithCancel(context.Background())
 	go n.blockchain.RunConsensus(ctx, 500*time.Millisecond)
+	n.shutdownCtxCancel = cancel  // Store the cancel function for later use
 
 	// Setup HTTP API server
 	mux := http.NewServeMux()
@@ -89,12 +92,12 @@ func (n *Node) Start() error {
 	// Start server in a goroutine
 	go func() {
 		if err := n.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			n.logger.Error("HTTP server error: %s", err)
+			n.logger.Error("HTTP server error", zap.Error(err))
 		}
 	}()
 
 	n.running = true
-	n.logger.Info("Blockchain node started on port %d", n.config.APIPort)
+	n.logger.Info("Blockchain node started", zap.Int("port", n.config.APIPort))
 	return nil
 }
 
@@ -268,7 +271,7 @@ func (n *Node) handleCreateBlock(w http.ResponseWriter, r *http.Request) {
 		TxIDs  []string `json:"txIDs"`
 	}{
 		ID:     block.ID().String(),
-		Height: block.Height,
+		Height: block.Height_,
 	}
 
 	// Convert transaction IDs to strings
@@ -331,7 +334,7 @@ func (n *Node) handleGetBlock(w http.ResponseWriter, r *http.Request) {
 	}{
 		ID:        block.ID().String(),
 		ParentIDs: parentIDs,
-		Height:    block.Height,
+		Height:    block.Height_,
 		Status:    block.Status().String(),
 		TxIDs:     txIDs,
 	}
@@ -381,7 +384,7 @@ func (n *Node) handleGetLatestBlocks(w http.ResponseWriter, r *http.Request) {
 			Height uint64 `json:"height"`
 		}{
 			ID:     block.ID().String(),
-			Height: block.Height,
+			Height: block.Height_,
 		})
 	}
 
