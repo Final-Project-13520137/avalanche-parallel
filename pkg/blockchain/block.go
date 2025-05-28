@@ -6,6 +6,7 @@ package blockchain
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -16,78 +17,143 @@ import (
 	"github.com/Final-Project-13520137/avalanche-parallel/default/snow/consensus/snowstorm"
 )
 
-// Block implements the avalanche.Vertex interface for use with Avalanche consensus
+// Block represents a block in the blockchain, implementing the ParallelVertex interface
 type Block struct {
-	BlockID     ids.ID               `json:"id"`
-	ParentIDs   []ids.ID             `json:"parentIDs"`
-	Height      uint64               `json:"height"`
-	Timestamp   int64                `json:"timestamp"`
-	Transactions []*Transaction      `json:"transactions"`
-	status      choices.Status       `json:"-"`
-	bytes       []byte               `json:"-"`
-	priority    uint64               `json:"-"`
+	ID_          ids.ID          `json:"id"`
+	ParentIDs    []ids.ID        `json:"parentIDs"`
+	Height       uint64          `json:"height"`
+	Timestamp    int64           `json:"timestamp"`
+	Transactions []*Transaction  `json:"transactions"`
+	status       choices.Status  `json:"status"`
+	bytes        []byte          `json:"bytes"`
 }
 
-// NewBlock creates a new block with the given parent IDs and transactions
-func NewBlock(parentIDs []ids.ID, txs []*Transaction, height uint64) (*Block, error) {
+// NewBlock creates a new block
+func NewBlock(parentIDs []ids.ID, transactions []*Transaction, height uint64) (*Block, error) {
 	block := &Block{
 		ParentIDs:    parentIDs,
+		Transactions: transactions,
 		Height:       height,
 		Timestamp:    time.Now().UnixNano(),
-		Transactions: txs,
 		status:       choices.Processing,
-		priority:     height, // Use height as priority for now
 	}
 
-	// Generate block ID and bytes
-	jsonBytes, err := json.Marshal(block)
+	// Generate bytes and ID
+	bytes, err := block.generateBytes()
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal block: %w", err)
+		return nil, err
 	}
-	block.bytes = jsonBytes
-
-	hash := sha256.Sum256(jsonBytes)
-	copy(block.BlockID[:], hash[:])
+	block.bytes = bytes
+	block.ID_ = ids.ID(ids.NewID(bytes))
 
 	return block, nil
 }
 
 // ID returns the block ID
 func (b *Block) ID() ids.ID {
-	return b.BlockID
+	return b.ID_
 }
 
-// Accept marks the block as accepted
+// Accept marks the block as accepted and processes all its transactions
 func (b *Block) Accept(ctx context.Context) error {
 	b.status = choices.Accepted
-	
-	// Also accept all transactions in the block
+
+	// Accept all transactions in this block
 	for _, tx := range b.Transactions {
 		if err := tx.Accept(ctx); err != nil {
-			return fmt.Errorf("failed to accept transaction: %w", err)
+			return err
 		}
 	}
-	
+
 	return nil
 }
 
 // Reject marks the block as rejected
 func (b *Block) Reject(ctx context.Context) error {
 	b.status = choices.Rejected
-	
-	// Also reject all transactions in the block
+
+	// Reject all transactions in this block
 	for _, tx := range b.Transactions {
 		if err := tx.Reject(ctx); err != nil {
-			return fmt.Errorf("failed to reject transaction: %w", err)
+			return err
 		}
 	}
-	
+
 	return nil
 }
 
 // Status returns the block status
 func (b *Block) Status() choices.Status {
 	return b.status
+}
+
+// Parent returns the parent block IDs
+func (b *Block) Parents() ([]ids.ID, error) {
+	return b.ParentIDs, nil
+}
+
+// Height returns the block height
+func (b *Block) Height() (uint64, error) {
+	return b.Height, nil
+}
+
+// Bytes returns the byte representation of the block
+func (b *Block) Bytes() []byte {
+	return b.bytes
+}
+
+// Verify verifies the block and all its transactions
+func (b *Block) Verify(ctx context.Context) error {
+	// Verify each transaction
+	for _, tx := range b.Transactions {
+		if err := tx.Verify(ctx); err != nil {
+			return fmt.Errorf("invalid transaction: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Txs returns all transactions in the block as snowstorm.Tx
+func (b *Block) Txs(ctx context.Context) ([]snowstorm.Tx, error) {
+	txs := make([]snowstorm.Tx, len(b.Transactions))
+	for i, tx := range b.Transactions {
+		txs[i] = tx
+	}
+	return txs, nil
+}
+
+// generateBytes creates a byte representation of the block
+func (b *Block) generateBytes() ([]byte, error) {
+	// For simplicity, create a basic representation
+	// In a real implementation, we would use a more sophisticated encoding
+	
+	// Allocate buffer for height (8 bytes) + parent count (8 bytes) + parent IDs + tx count (8 bytes)
+	parentIDsSize := len(b.ParentIDs) * ids.IDLen
+	buffer := make([]byte, 8+8+parentIDsSize+8)
+	
+	// Add height
+	binary.BigEndian.PutUint64(buffer[:8], b.Height)
+	
+	// Add parent count
+	binary.BigEndian.PutUint64(buffer[8:16], uint64(len(b.ParentIDs)))
+	
+	// Add parent IDs
+	offset := 16
+	for _, parentID := range b.ParentIDs {
+		copy(buffer[offset:offset+ids.IDLen], parentID[:])
+		offset += ids.IDLen
+	}
+	
+	// Add transaction count
+	binary.BigEndian.PutUint64(buffer[offset:offset+8], uint64(len(b.Transactions)))
+	
+	return buffer, nil
+}
+
+// GetProcessingPriority returns the block's processing priority
+func (b *Block) GetProcessingPriority() uint64 {
+	return b.Height
 }
 
 // Parents returns the parent vertices of this block
@@ -97,38 +163,7 @@ func (b *Block) Parents() ([]avalanche.Vertex, error) {
 	return []avalanche.Vertex{}, nil
 }
 
-// Height returns the height of this block
-func (b *Block) Height() (uint64, error) {
-	return b.Height, nil
-}
-
-// Txs returns the transactions in this block
-func (b *Block) Txs(ctx context.Context) ([]snowstorm.Tx, error) {
-	txs := make([]snowstorm.Tx, len(b.Transactions))
-	for i, tx := range b.Transactions {
-		txs[i] = tx
-	}
-	return txs, nil
-}
-
-// Bytes returns the serialized bytes of this block
-func (b *Block) Bytes() []byte {
-	return b.bytes
-}
-
-// Verify verifies this block is valid
-func (b *Block) Verify(ctx context.Context) error {
-	// Verify all transactions
-	for _, tx := range b.Transactions {
-		if err := tx.Verify(ctx); err != nil {
-			return fmt.Errorf("invalid transaction: %w", err)
-		}
-	}
-	
-	return nil
-}
-
-// GetProcessingPriority returns the priority for processing this block
-func (b *Block) GetProcessingPriority() uint64 {
-	return b.priority
+// Timestamp returns the timestamp of this block
+func (b *Block) Timestamp() (int64, error) {
+	return b.Timestamp, nil
 } 

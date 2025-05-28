@@ -493,17 +493,272 @@ Worker nodes can be configured using environment variables:
 
 ## 🔄 Dependencies
 
-This project depends on the local avalanche-parallel codebase. Make sure it's available at the relative path:
-
-```
-../avalanche-parallel
-```
+This project depends on the Avalanche codebase. By default, the project looks for the Avalanche code in the `./default` directory within this repository.
 
 The go.mod file includes a replace directive to handle this dependency:
 
 ```
-replace github.com/Final-Project-13520137/avalanche-parallel => ../avalanche-parallel
+replace github.com/Final-Project-13520137/avalanche-parallel => ./default
 ```
+
+### Alternative Path Configuration
+
+If your Avalanche code is located elsewhere, you have several options:
+
+1. **Update the replace directive in go.mod:**
+   ```
+   replace github.com/Final-Project-13520137/avalanche-parallel => /path/to/avalanche-parallel
+   ```
+
+2. **Use an environment variable:**
+   ```bash
+   # For Linux/macOS
+   export AVALANCHE_PARALLEL_PATH=/path/to/avalanche-parallel
+   go mod edit -replace github.com/Final-Project-13520137/avalanche-parallel=$AVALANCHE_PARALLEL_PATH
+   
+   # For Windows PowerShell
+   $env:AVALANCHE_PARALLEL_PATH="C:\path\to\avalanche-parallel"
+   go mod edit -replace github.com/Final-Project-13520137/avalanche-parallel=$env:AVALANCHE_PARALLEL_PATH
+   ```
+
+### Troubleshooting Module Issues
+
+If you encounter errors like:
+
+```
+replacement directory does not exist
+```
+
+This indicates that Go cannot find the Avalanche code at the path specified in the replace directive.
+
+#### Using Helper Scripts
+
+We provide helper scripts to fix module path issues easily:
+
+1. **For Windows:**
+   ```powershell
+   .\fix-module-path.ps1
+   ```
+
+2. **For Linux/macOS/WSL:**
+   ```bash
+   chmod +x fix-module-path.sh
+   ./fix-module-path.sh
+   ```
+
+These scripts will guide you through setting up the correct path to the Avalanche code, either by updating the go.mod file or creating symbolic links.
+
+#### For WSL/Docker Users
+
+When running in WSL or Docker, make sure the path in the replace directive is accessible in your environment:
+
+```bash
+# Check if the path exists
+ls -la ./default
+
+# If it doesn't exist, create a symbolic link
+ln -s /path/to/avalanche/code ./default
+
+# Or update go.mod to point to the correct path
+go mod edit -replace github.com/Final-Project-13520137/avalanche-parallel=/path/to/avalanche/code
+```
+
+#### Using the Included Code Copy
+
+This repository includes a copy of the necessary Avalanche code in the `default` directory. In most cases, this should be sufficient for running tests and examples without additional configuration.
+
+#### Go Version Compatibility
+
+If you encounter an error like:
+
+```
+go: go.mod file indicates go 1.21, but maximum version supported by tidy is 1.18
+```
+
+This means the Go version specified in your go.mod file is higher than the version available in your environment. You can fix this by:
+
+1. **Using the simple version fix script (recommended for WSL/Docker):**
+   
+   ```bash
+   # Make the script executable
+   chmod +x fix-go-version.sh
+   
+   # Run the script
+   ./fix-go-version.sh
+   ```
+
+2. **Using the helper scripts:**
+   
+   Our helper scripts automatically detect version mismatches and fix them:
+   
+   ```bash
+   # Linux/macOS/WSL
+   ./fix-module-path.sh
+   
+   # Windows
+   .\fix-module-path.ps1
+   ```
+
+3. **Manually editing go.mod:**
+   
+   Change the Go version in go.mod to match your environment:
+   
+   ```bash
+   # Check your Go version
+   go version
+   
+   # Edit go.mod to match
+   # For example, change "go 1.21" to "go 1.18" if that's your version
+   sed -i 's/go 1.21/go 1.18/' go.mod   # Linux/macOS
+   (Get-Content go.mod) -replace 'go 1.21', 'go 1.18' | Set-Content go.mod  # Windows PowerShell
+   ```
+
+4. **Using the go mod edit command:**
+   
+   ```bash
+   # Set Go version to 1.18
+   go mod edit -go=1.18
+   ```
+
+After changing the Go version, run `go mod tidy` again to update dependencies.
+
+## 🧪 Running Tests
+
+This repository includes comprehensive tests for the Avalanche Parallel Blockchain implementation, covering various aspects of blockchain functionality with a focus on transaction handling and parallel processing.
+
+### Using Test Scripts
+
+The simplest way to run tests is using the provided scripts:
+
+1. **For Windows:**
+   ```powershell
+   .\runtest.ps1
+   ```
+
+2. **For Linux/macOS:**
+   ```bash
+   ./restart.sh
+   ```
+
+### Running Tests Manually
+
+You can also run specific tests manually:
+
+```bash
+# Run all tests
+go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain
+
+# Run specific test category
+go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestTransaction
+go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestBlock
+go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestBlockchain
+go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestFull
+```
+
+### Running Simple Test Example
+
+To run the simplified blockchain test example:
+
+```bash
+# Build the test
+go build -o test_blockchain.exe simple_test.go
+
+# Run the test
+./test_blockchain.exe
+```
+
+### Test Categories
+
+The test suite includes various test categories:
+
+1. **Unit Tests** - Cover individual components:
+   - Transaction creation, validation and signing
+   - Block creation, validation and status transitions
+   - Blockchain initialization and transaction handling
+
+2. **Integration Tests** - Test the complete blockchain flow:
+   - Full transaction lifecycle
+   - Fork resolution
+   - Double spend handling
+   - High load testing
+   - Parallel consensus benchmarking
+
+3. **Load Testing** - Simulates various transaction patterns:
+   - Normal transactions
+   - Double spend attempts
+   - High value transactions
+   - Micro transactions
+   - Transaction bursts
+
+### Test Output
+
+The tests produce detailed output about transaction processing, block creation, and consensus outcomes. Watch for:
+
+- Block acceptance/rejection
+- Transaction status changes
+- Fork resolution
+- Performance metrics for parallel processing
+
+### Request ID Verification
+
+When working with specific request IDs, you can verify if they're being processed correctly using the following approaches:
+
+1. **Check Process Status:**
+   
+   To verify if a request is being processed (e.g., request ID "64d0f14f-e0b8-4a77-b2f3-c769789177b1"):
+   
+   ```powershell
+   # Windows PowerShell
+   .\runtest.ps1
+   
+   # Linux/macOS/WSL
+   ./restart.sh
+   
+   # Alternatively, run the test directly with specific outputs
+   go build -o test_blockchain test_blockchain.go
+   ./test_blockchain -request-id=64d0f14f-e0b8-4a77-b2f3-c769789177b1 -verbose
+   ```
+
+2. **Check Logs:**
+
+   Examine the generated logs for the specific request ID:
+   
+   ```bash
+   # Windows PowerShell
+   Select-String -Path .\logs\* -Pattern "64d0f14f-e0b8-4a77-b2f3-c769789177b1"
+   
+   # Linux/macOS/WSL
+   grep -r "64d0f14f-e0b8-4a77-b2f3-c769789177b1" ./logs/
+   ```
+
+3. **Request Status API:**
+
+   If running with the API enabled, you can check the status via HTTP:
+   
+   ```bash
+   # Using curl
+   curl -X GET "http://localhost:9650/ext/blockchain/request-status?id=64d0f14f-e0b8-4a77-b2f3-c769789177b1"
+   ```
+
+4. **For WSL/Docker Users:**
+
+   When running in a containerized environment, ensure your environment has the proper path configuration:
+   
+   ```bash
+   # Set the correct path to the Avalanche code
+   export AVALANCHE_PARALLEL_PATH=/mnt/wsl/docker-desktop-bind-mounts/Ubuntu-22.04/path/to/avalanche-code
+   
+   # Update go.mod
+   go mod edit -replace github.com/Final-Project-13520137/avalanche-parallel=$AVALANCHE_PARALLEL_PATH
+   
+   # Run the test
+   go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain
+   
+   # For a specific request ID
+   go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestRequestID -request-id=64d0f14f-e0b8-4a77-b2f3-c769789177b1
+   ```
+
+Request IDs in the system are tracked through the processing pipeline, and their status is recorded in the logs. A successful request processing will show confirmation in the output.
 
 ## 📄 License
 
