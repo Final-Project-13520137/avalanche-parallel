@@ -7,7 +7,9 @@
 
 package database
 
-import "slices"
+import (
+	"github.com/Final-Project-13520137/avalanche-parallel/utils"
+)
 
 // Batch is a write-only database that commits changes to its host database
 // when Write is called. A batch cannot be used concurrently.
@@ -54,8 +56,8 @@ type BatchOps struct {
 
 func (b *BatchOps) Put(key, value []byte) error {
 	b.Ops = append(b.Ops, BatchOp{
-		Key:   slices.Clone(key),
-		Value: slices.Clone(value),
+		Key:   utils.SlicesClone(key),
+		Value: utils.SlicesClone(value),
 	})
 	b.size += len(key) + len(value)
 	return nil
@@ -63,7 +65,7 @@ func (b *BatchOps) Put(key, value []byte) error {
 
 func (b *BatchOps) Delete(key []byte) error {
 	b.Ops = append(b.Ops, BatchOp{
-		Key:    slices.Clone(key),
+		Key:    utils.SlicesClone(key),
 		Delete: true,
 	})
 	b.size += len(key)
@@ -75,8 +77,7 @@ func (b *BatchOps) Size() int {
 }
 
 func (b *BatchOps) Reset() {
-	clear(b.Ops)
-	b.Ops = b.Ops[:0]
+	
 	b.size = 0
 }
 
@@ -92,3 +93,7 @@ func (b *BatchOps) Replay(w KeyValueWriterDeleter) error {
 	}
 	return nil
 }
+
+
+
+

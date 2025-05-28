@@ -13,17 +13,63 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // Mock logger for testing
 type testLogger struct{}
 
-func (l *testLogger) Debug(msg string, args ...interface{}) {}
-func (l *testLogger) Info(msg string, args ...interface{})  {}
-func (l *testLogger) Warn(msg string, args ...interface{})  {}
-func (l *testLogger) Error(msg string, args ...interface{}) {}
-func (l *testLogger) Fatal(msg string, args ...interface{}) {}
-func (l *testLogger) Verbo(msg string, args ...interface{}) {}
+func (l *testLogger) Fatal(msg string, fields ...zap.Field) {}
+func (l *testLogger) Error(msg string, fields ...zap.Field) {}
+func (l *testLogger) Warn(msg string, fields ...zap.Field)  {}
+func (l *testLogger) Info(msg string, fields ...zap.Field)  {}
+func (l *testLogger) Trace(msg string, fields ...zap.Field) {}
+func (l *testLogger) Debug(msg string, fields ...zap.Field) {}
+func (l *testLogger) Verbo(msg string, fields ...zap.Field) {}
+
+// Implement io.Writer interface
+func (l *testLogger) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+// Implement the remaining methods from the Logger interface
+func (l *testLogger) With(fields ...zap.Field) logging.Logger {
+	return l
+}
+
+func (l *testLogger) WithOptions(opts ...zap.Option) logging.Logger {
+	return l
+}
+
+func (l *testLogger) SetLevel(level logging.Level) {}
+
+func (l *testLogger) Enabled(lvl logging.Level) bool {
+	return true
+}
+
+func (l *testLogger) StopOnPanic() {}
+
+func (l *testLogger) RecoverAndPanic(f func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			l.Fatal("panic", zap.Any("error", r))
+			panic(r)
+		}
+	}()
+	f()
+}
+
+func (l *testLogger) RecoverAndExit(f func(), exit func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			l.Fatal("panic", zap.Any("error", r))
+			exit()
+		}
+	}()
+	f()
+}
+
+func (l *testLogger) Stop() {}
 
 func createTestBlockchain(t *testing.T) *Blockchain {
 	logger := &testLogger{}
@@ -89,7 +135,11 @@ func TestCreateBlock(t *testing.T) {
 	parentIDs := []ids.ID{bc.genesisBlock.ID()}
 	block, err := bc.CreateBlock(parentIDs, 10)
 	assert.NoError(t, err)
-	assert.Equal(t, uint64(1), block.Height)
+	
+	height, err := block.Height()
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), height)
+	
 	assert.Len(t, block.Transactions, 2)
 
 	// Verify transactions were removed from pool

@@ -4,10 +4,10 @@
 package blockchain
 
 import (
-	"context"
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +36,9 @@ func TestFullBlockchainFlow(t *testing.T) {
 	require.Len(t, block.Transactions, 5)
 
 	// Verify block height
-	assert.Equal(t, uint64(1), block.Height)
+	height, err := block.Height()
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), height)
 
 	// Submit block for consensus
 	err = bc.SubmitBlock(block)

@@ -1,7 +1,7 @@
 FROM golang:1.19-alpine
 
 # Install build dependencies
-RUN apk add --no-cache build-base git curl
+RUN apk add --no-cache build-base git curl bash
 
 # Set working directory
 WORKDIR /app
@@ -13,6 +13,10 @@ COPY . .
 ARG AVALANCHE_PARALLEL_PATH
 RUN mkdir -p /go/src/github.com/Final-Project-13520137
 RUN ln -s /avalanche-parallel /go/src/github.com/Final-Project-13520137/avalanche-parallel
+
+# Fix Go version issues before building
+RUN chmod +x fix-go-version.sh
+RUN ./fix-go-version.sh
 
 # Build the binary
 RUN go build -o /bin/worker ./cmd/worker

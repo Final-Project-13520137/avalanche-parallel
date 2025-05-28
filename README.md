@@ -35,6 +35,235 @@ This project implements an optimized version of the Directed Acyclic Graph (DAG)
 - Distributed processing across multiple Kubernetes worker pods
 - Efficient frontier management for optimal parallel execution
 
+## 🚀 Installation and Setup Guide
+
+This section provides comprehensive instructions for installing, building, and running the Avalanche Parallel DAG system.
+
+### Prerequisites
+
+- Go 1.18 or later
+- Git
+- Docker and Docker Compose (for containerized deployment)
+- 4GB+ RAM
+- 20GB+ free disk space
+
+### Installation Options
+
+#### Option 1: Clone Repository
+
+```bash
+# Clone the repository
+git clone https://github.com/Final-Project-13520137/avalanche-parallel-dag.git
+cd avalanche-parallel-dag
+
+# Clone the Avalanche reference code into the default directory
+git clone https://github.com/ava-labs/avalanchego.git default
+```
+
+#### Option 2: Download Release
+
+```bash
+# Download the latest release
+curl -LO https://github.com/Final-Project-13520137/avalanche-parallel-dag/archive/refs/tags/v1.0.0.tar.gz
+tar -xzf v1.0.0.tar.gz
+cd avalanche-parallel-dag-1.0.0
+```
+
+### Go Version Compatibility
+
+The project is designed to work with Go 1.18. If you encounter Go version compatibility issues, use our helper scripts:
+
+#### Windows (PowerShell):
+```powershell
+# Fix Go version
+.\fix-go-version.ps1
+
+# Fix Go compatibility for older Go versions
+.\fix-go-compatibility.ps1
+```
+
+#### Linux/macOS:
+```bash
+# Make scripts executable
+chmod +x fix-go-version.sh fix-go-compatibility.sh
+
+# Fix Go version
+./fix-go-version.sh
+
+# Fix Go compatibility for older Go versions
+./fix-go-compatibility.sh
+```
+
+### Building from Source
+
+#### Build the Main Binary
+
+```bash
+# Windows (PowerShell)
+go build -o avalanche-parallel.exe .\cmd\avalanche
+
+# Linux/macOS
+go build -o avalanche-parallel ./cmd/avalanche
+```
+
+#### Build Worker Nodes
+
+```bash
+# Windows (PowerShell)
+go build -o worker.exe .\cmd\worker
+
+# Linux/macOS
+go build -o worker ./cmd/worker
+```
+
+### Running the System
+
+#### Starting the Node (Standalone)
+
+```bash
+# Windows
+.\avalanche-parallel.exe --network-id=local --staking-enabled=false --http-port=9650
+
+# Linux/macOS
+./avalanche-parallel --network-id=local --staking-enabled=false --http-port=9650
+```
+
+#### Starting Worker Nodes (Standalone)
+
+```bash
+# Windows
+.\worker.exe --api-port=9652 --threads=4
+
+# Linux/macOS
+./worker --api-port=9652 --threads=4
+```
+
+#### Using Docker Compose (Recommended)
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Scale worker nodes
+docker-compose up -d --scale worker=3
+
+# Check service status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+
+# Stop all services
+docker-compose down
+```
+
+### Running with Modified Ports
+
+If you encounter port conflicts, use our restart scripts:
+
+```bash
+# Windows (PowerShell)
+.\restart-docker.ps1
+
+# Linux/macOS
+chmod +x restart-docker.sh
+./restart-docker.sh
+```
+
+### Running Tests
+
+```bash
+# Run all blockchain tests
+go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain
+
+# Run specific test categories
+go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestTransaction
+go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestBlock
+go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestBlockchain
+
+# Using test script (Windows)
+.\runtest.ps1
+
+# Using test script (Linux/macOS)
+chmod +x restart.sh
+./restart.sh
+```
+
+### Running Benchmarks
+
+```bash
+# Run benchmarks with 1000 vertices and 4 threads
+go run ./cmd/benchmark -vertices=1000 -threads=4 -iterations=10
+```
+
+### Accessing Services
+
+Once running, you can access the following services:
+
+- **Avalanche Node API**: http://localhost:9650/ext/info
+- **Worker API**: http://localhost:9652/health
+- **Prometheus**: http://localhost:19090 (modified port to avoid conflicts)
+- **Grafana**: http://localhost:13000 (modified port to avoid conflicts)
+  - Default credentials: username `admin`, password `admin`
+
+### Troubleshooting Common Issues
+
+#### 1. Module Path Issues
+
+If you encounter module path errors:
+
+```bash
+# Windows (PowerShell)
+.\fix-module-path.ps1
+
+# Linux/macOS
+chmod +x fix-module-path.sh
+./fix-module-path.sh
+```
+
+#### 2. Import Path Issues
+
+For import path errors:
+
+```bash
+# Windows (PowerShell)
+.\fix-all-imports.ps1
+
+# Linux/macOS
+chmod +x fix-all-imports.sh
+./fix-all-imports.sh
+```
+
+#### 3. Go Version Issues
+
+For Go version compatibility:
+
+```bash
+# Windows (PowerShell)
+.\fix-go-version.ps1
+
+# Linux/macOS
+chmod +x fix-go-version.sh
+./fix-go-version.sh
+```
+
+#### 4. Docker Compose Issues
+
+For Docker Compose issues:
+
+```bash
+# Rebuild containers with specific arguments
+docker-compose build --build-arg AVALANCHE_PARALLEL_PATH=../avalanche-parallel
+
+# Or use our restart script
+# Windows (PowerShell)
+.\restart-docker.ps1
+
+# Linux/macOS
+chmod +x restart-docker.sh
+./restart-docker.sh
+```
+
 ## ✨ Features
 
 <table>
@@ -938,47 +1167,80 @@ docker-compose down -v
 
 ---
 
-## Module Path and Import Fixes
+## 📋 Quick Reference Commands
 
-If you encounter module path or import path errors, we've provided scripts to help fix them. Common issues include:
+Here's a cheat sheet of commonly used commands for quick reference:
 
-1. **Module path mismatch**: If you see errors like "module declares its path as: github.com/ava-labs/avalanchego but was required as: github.com/Final-Project-13520137/avalanche-parallel/default", you need to fix the import paths in your code.
+### Setup & Installation
 
-2. **Import path errors**: If your code tries to import from "github.com/Final-Project-13520137/avalanche-parallel/default" but the code actually declares "github.com/ava-labs/avalanchego", you'll need to update the imports.
-
-### Fixing with Provided Scripts
-
-Run one of these scripts to automatically fix common import path issues:
-
-#### Windows (PowerShell):
-```powershell
-# Fix all import paths in the project
-.\fix-all-imports.ps1
-```
-
-#### Linux/macOS:
 ```bash
-# Fix all import paths in the project
-./fix-all-imports.sh
+# Clone repositories
+git clone https://github.com/Final-Project-13520137/avalanche-parallel-dag.git
+git clone https://github.com/ava-labs/avalanchego.git default
+
+# Fix Go version issues
+./fix-go-version.sh  # Linux/macOS
+.\fix-go-version.ps1  # Windows
+
+# Fix Go compatibility
+./fix-go-compatibility.sh  # Linux/macOS
+.\fix-go-compatibility.ps1  # Windows
 ```
 
-### Manual Fixes
+### Building
 
-If you prefer to fix imports manually, follow these steps:
+```bash
+# Build main node
+go build -o avalanche-parallel ./cmd/avalanche
 
-1. Update the go.mod replace directive:
-   ```
-   replace github.com/ava-labs/avalanchego => ./default
-   ```
+# Build worker
+go build -o worker ./cmd/worker
+```
 
-2. In your code, use imports that point to the actual module path:
-   ```go
-   import (
-       "github.com/ava-labs/avalanchego/ids"
-       "github.com/ava-labs/avalanchego/utils/logging"
-   )
-   ```
+### Running
 
-3. Run `go mod tidy` after making changes.
+```bash
+# Start with Docker Compose
+docker-compose up -d
 
-This will ensure that your code correctly references the Avalanche modules regardless of where they're physically located in your project.
+# Scale workers
+docker-compose up -d --scale worker=3
+
+# Start with custom ports
+./restart-docker.sh  # Linux/macOS
+.\restart-docker.ps1  # Windows
+
+# Stop services
+docker-compose down
+```
+
+### Testing
+
+```bash
+# Run all tests
+go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain
+
+# Run simple test
+./runtest.ps1  # Windows
+./restart.sh  # Linux/macOS
+
+# Run benchmark
+go run ./cmd/benchmark -vertices=1000 -threads=4
+```
+
+### Troubleshooting
+
+```bash
+# Fix module paths
+./fix-module-path.sh  # Linux/macOS
+.\fix-module-path.ps1  # Windows
+
+# Fix import paths
+./fix-all-imports.sh  # Linux/macOS
+.\fix-all-imports.ps1  # Windows
+
+# Clean Go cache
+go clean -cache
+```
+
+For more detailed information, refer to the appropriate sections in this README.

@@ -25,7 +25,11 @@ func TestNewBlock(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, block)
 	assert.Equal(t, parentIDs, block.ParentIDs)
-	assert.Equal(t, uint64(1), block.Height)
+	
+	height, err := block.Height()
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), height)
+	
 	assert.Equal(t, txs, block.Transactions)
 	assert.Equal(t, block.status.String(), "Processing")
 	assert.NotEmpty(t, block.bytes)

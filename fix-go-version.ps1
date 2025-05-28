@@ -8,22 +8,20 @@ Write-Host "This script fixes Go version and toolchain issues in go.mod`n"
 Write-Host "Creating backup of go.mod..." -ForegroundColor Yellow
 Copy-Item -Path "go.mod" -Destination "go.mod.bak" -Force
 
-# Read the current go.mod file
-Write-Host "Reading go.mod file..." -ForegroundColor Green
+# Fix go.mod file
+Write-Host "Fixing go.mod file..." -ForegroundColor Green
+
+# Read content
 $goModContent = Get-Content -Path "go.mod" -Raw
 
-# Fix the Go version (change 1.23.9 to a proper format like 1.18)
-Write-Host "Fixing Go version..." -ForegroundColor Green
+# Replace invalid Go version with 1.18
 $goModContent = $goModContent -replace "go 1.23.9", "go 1.18"
 
-# Remove the toolchain directive
-Write-Host "Removing toolchain directive..." -ForegroundColor Green
+# Remove toolchain directive
 $goModContent = $goModContent -replace "toolchain go1.24.3`r`n`r`n", ""
 $goModContent = $goModContent -replace "toolchain go1.24.3`n`n", ""
-$goModContent = $goModContent -replace "toolchain go1.24.3", ""
 
-# Write the fixed content back to go.mod
-Write-Host "Writing updated go.mod file..." -ForegroundColor Green
+# Write the fixed content to go.mod
 Set-Content -Path "go.mod" -Value $goModContent
 
 # Run go mod tidy to clean up dependencies
