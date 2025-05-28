@@ -6,7 +6,7 @@ package math
 import (
 	"errors"
 
-	"golang.org/x/exp/constraints"
+	"github.com/ava-labs/avalanchego/utils/cmp"
 )
 
 var (
@@ -21,14 +21,14 @@ var (
 )
 
 // MaxUint returns the maximum value of an unsigned integer of type T.
-func MaxUint[T constraints.Unsigned]() T {
+func MaxUint[T cmp.Unsigned]() T {
 	return ^T(0)
 }
 
 // Add returns:
 // 1) a + b
 // 2) If there is overflow, an error
-func Add[T constraints.Unsigned](a, b T) (T, error) {
+func Add[T cmp.Unsigned](a, b T) (T, error) {
 	if a > MaxUint[T]()-b {
 		return 0, ErrOverflow
 	}
@@ -38,7 +38,7 @@ func Add[T constraints.Unsigned](a, b T) (T, error) {
 // Sub returns:
 // 1) a - b
 // 2) If there is underflow, an error
-func Sub[T constraints.Unsigned](a, b T) (T, error) {
+func Sub[T cmp.Unsigned](a, b T) (T, error) {
 	if a < b {
 		return 0, ErrUnderflow
 	}
@@ -48,13 +48,16 @@ func Sub[T constraints.Unsigned](a, b T) (T, error) {
 // Mul returns:
 // 1) a * b
 // 2) If there is overflow, an error
-func Mul[T constraints.Unsigned](a, b T) (T, error) {
+func Mul[T cmp.Unsigned](a, b T) (T, error) {
 	if b != 0 && a > MaxUint[T]()/b {
 		return 0, ErrOverflow
 	}
 	return a * b, nil
 }
 
-func AbsDiff[T constraints.Unsigned](a, b T) T {
-	return max(a, b) - min(a, b)
-}
+func AbsDiff[T cmp.Unsigned](a, b T) T {
+	if a > b {
+		return a - b
+	}
+	return b - a
+} 

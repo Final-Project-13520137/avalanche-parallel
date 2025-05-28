@@ -3,42 +3,5 @@
 
 package sampler
 
-import (
-	safemath "github.com/ava-labs/avalanchego/utils/math"
-)
-
-type weightedWithoutReplacementGeneric struct {
-	u Uniform
-	w Weighted
-}
-
-func (s *weightedWithoutReplacementGeneric) Initialize(weights []uint64) error {
-	totalWeight := uint64(0)
-	for _, weight := range weights {
-		newWeight, err := safemath.Add(totalWeight, weight)
-		if err != nil {
-			return err
-		}
-		totalWeight = newWeight
-	}
-	s.u.Initialize(totalWeight)
-	return s.w.Initialize(weights)
-}
-
-func (s *weightedWithoutReplacementGeneric) Sample(count int) ([]int, bool) {
-	s.u.Reset()
-
-	indices := make([]int, count)
-	for i := 0; i < count; i++ {
-		weight, ok := s.u.Next()
-		if !ok {
-			return nil, false
-		}
-
-		indices[i], ok = s.w.Sample(weight)
-		if !ok {
-			return nil, false
-		}
-	}
-	return indices, true
-}
+// This file is a placeholder. The actual implementation is now in weighted_without_replacement.go
+// The file exists to avoid compilation errors when the original implementation is referenced. 

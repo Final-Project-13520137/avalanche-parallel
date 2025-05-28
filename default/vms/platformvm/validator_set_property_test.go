@@ -16,7 +16,7 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
+	"github.com/ava-labs/avalanchego/utils/maps"
 
 	"github.com/ava-labs/avalanchego/chains"
 	"github.com/ava-labs/avalanchego/chains/atomic"

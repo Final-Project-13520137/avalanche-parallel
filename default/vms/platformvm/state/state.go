@@ -15,7 +15,7 @@ import (
 	"github.com/google/btree"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
-	"golang.org/x/exp/maps"
+	"github.com/ava-labs/avalanchego/utils/maps"
 
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/cache/lru"

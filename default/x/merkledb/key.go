@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"golang.org/x/exp/maps"
+	"github.com/ava-labs/avalanchego/utils/maps"
 )
 
 var (

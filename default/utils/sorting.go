@@ -23,6 +23,20 @@ func Sort[T Sortable[T]](s []T) {
 	})
 }
 
+// SortBytes sorts a slice of byte slices
+func SortBytes(byteSlices [][]byte) {
+	sort.Slice(byteSlices, func(i, j int) bool {
+		return bytes.Compare(byteSlices[i], byteSlices[j]) < 0
+	})
+}
+
+// Sort2DBytes sorts a 2D byte slice by the first index's lexicographical order
+func Sort2DBytes(byteSlices [][]byte) {
+	sort.Slice(byteSlices, func(i, j int) bool {
+		return bytes.Compare(byteSlices[i], byteSlices[j]) < 0
+	})
+}
+
 // Sorts the elements of [s] based on their hashes.
 func SortByHash[T ~[]byte](s []T) {
 	sort.Slice(s, func(i, j int) bool {
@@ -35,7 +49,7 @@ func SortByHash[T ~[]byte](s []T) {
 // Returns true iff the elements in [s] are sorted.
 func IsSortedBytes[T ~[]byte](s []T) bool {
 	for i := 0; i < len(s)-1; i++ {
-		if bytes.Compare(s[i], s[i+1]) == 1 {
+		if bytes.Compare(s[i], s[i+1]) > 0 {
 			return false
 		}
 	}
@@ -162,10 +176,34 @@ func IsSortedAndUniqueByHash[T ~[]byte](s []T) bool {
 	rightHash := hashing.ComputeHash256(s[0])
 	for i := 1; i < len(s); i++ {
 		leftHash := rightHash
-		rightHash := hashing.ComputeHash256(s[i])
-		if bytes.Compare(leftHash, rightHash) != -1 {
+		rightHash = hashing.ComputeHash256(s[i])
+		if bytes.Compare(leftHash, rightHash) >= 0 {
 			return false
 		}
 	}
 	return true
+}
+
+// Compare returns a negative number, 0, or positive number if [a] is less than,
+// equal to, or greater than [b].
+// Assumes that [a] and [b] have the same length.
+func Compare(a, b []byte) int {
+	return bytes.Compare(a, b)
+}
+
+// CompareSlice returns a negative number, 0, or positive number if [a] is less than,
+// equal to, or greater than [b].
+func CompareSlice(a, b [][]byte) int {
+	minLen := len(a)
+	if len(b) < minLen {
+		minLen = len(b)
+	}
+	for i := 0; i < minLen; i++ {
+		comparison := bytes.Compare(a[i], b[i])
+		if comparison != 0 {
+			return comparison
+		}
+	}
+	return len(a) - len(b)
 } 
+

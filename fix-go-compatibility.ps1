@@ -252,4 +252,67 @@ foreach ($testFile in $testFilesToFix) {
 }
 
 Write-Host "`nDone! Go 1.18 compatibility fixes have been applied." -ForegroundColor Green
-Write-Host "You should now be able to build and test with Go 1.18." 
+Write-Host "You should now be able to build and test with Go 1.18."
+
+Write-Host "Applying Go 1.18 compatibility fixes..."
+
+# Fix go.mod file
+if (Test-Path "go.mod.fixed") {
+    Write-Host "Fixing go.mod with compatible versions for Go 1.18"
+    Copy-Item -Force -Path "go.mod.fixed" -Destination "go.mod"
+    
+    # Run go mod tidy to ensure dependencies are correct
+    Write-Host "Running go mod tidy to update dependencies"
+    go mod tidy
+}
+
+# Fix sorting.go file
+if (Test-Path "default/utils/sorting.go") {
+    Write-Host "Fixing default/utils/sorting.go with Go 1.18 compatible code"
+    
+    # Create a backup of the original file
+    Copy-Item -Force -Path "default/utils/sorting.go" -Destination "default/utils/sorting.go.bak"
+    
+    # Replace problematic bytes.Compare in sorting.go
+    (Get-Content "default/utils/sorting.go") | ForEach-Object {
+        $_ -replace "bytes.Compare\(bytes\[i\], bytes\[j\]\) < 0", "bytes.Compare(byteSlices[i], byteSlices[j]) < 0" `
+           -replace "func SortBytes\(bytes \[\]\[\]byte\)", "func SortBytes(byteSlices [][]byte)" `
+           -replace "func Sort2DBytes\(bytes \[\]\[\]byte\)", "func Sort2DBytes(byteSlices [][]byte)" `
+           -replace "bytes.Compare\(s\[i\], s\[i\+1\]\) == 1", "bytes.Compare(s[i], s[i+1]) > 0" `
+           -replace "bytes.Compare\(leftHash, rightHash\) != -1", "bytes.Compare(leftHash, rightHash) >= 0"
+    } | Set-Content "default/utils/sorting.go"
+}
+
+# Fix set implementation
+if (Test-Path "set_fixed.go") {
+    if (Test-Path "default/utils/set/set.go") {
+        Write-Host "Fixing set.go implementation for Go 1.18 compatibility"
+        Copy-Item -Force -Path "default/utils/set/set.go" -Destination "default/utils/set/set.go.bak"
+        
+        # Create a custom set implementation in the default directory
+        Copy-Item -Force -Path "set_fixed.go" -Destination "default/utils/set/set_fixed.go"
+    }
+}
+
+# Fix sampleable_set implementation
+if (Test-Path "sampleable_set_fixed.go") {
+    if (Test-Path "default/utils/set/sampleable_set.go") {
+        Write-Host "Fixing sampleable_set.go implementation for Go 1.18 compatibility"
+        Copy-Item -Force -Path "default/utils/set/sampleable_set.go" -Destination "default/utils/set/sampleable_set.go.bak"
+        
+        # Create a custom sampleable_set implementation in the default directory
+        Copy-Item -Force -Path "sampleable_set_fixed.go" -Destination "default/utils/set/sampleable_set_fixed.go"
+    }
+}
+
+# Fix weighted heap implementation issues
+if (Test-Path "weighted_heap_fixed.go") {
+    Write-Host "Applying fixes for weighted heap implementation"
+    Copy-Item -Force -Path "weighted_heap_fixed.go" -Destination "default/utils/sampler/weighted_heap_fixed.go"
+}
+
+# Run go mod tidy again to make sure everything is correct
+go mod tidy
+
+Write-Host "Go 1.18 compatibility fixes have been applied."
+Write-Host "You can now build and run the project with Go 1.18." 
