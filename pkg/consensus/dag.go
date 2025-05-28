@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Final-Project-13520137/avalanche-parallel/default/snow/choices"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/snow/consensus/avalanche"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/snow/consensus/snowstorm"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/ids"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/utils/logging"
+	"github.com/ava-labs/avalanchego/snow/choices"
+	"github.com/ava-labs/avalanchego/snow/consensus/avalanche"
+	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 )
 
 var (

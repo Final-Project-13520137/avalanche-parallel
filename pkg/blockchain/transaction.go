@@ -5,12 +5,14 @@ package blockchain
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 
-	"github.com/Final-Project-13520137/avalanche-parallel/default/ids"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/snow/choices"
-	"github.com/Final-Project-13520137/avalanche-parallel/default/snow/consensus/snowstorm"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/choices"
+	"github.com/ava-labs/avalanchego/snow/consensus/snowstorm"
+	"github.com/ava-labs/avalanchego/utils/set"
 )
 
 var (
@@ -44,12 +46,16 @@ func NewTransaction(sender, recipient string, amount, nonce uint64) (*Transactio
 	}
 
 	// Generate ID based on transaction data
-	bytes, err := tx.Bytes()
+	bytes, err := tx.generateBytes()
 	if err != nil {
 		return nil, err
 	}
 	tx.bytes = bytes
-	tx.ID_ = ids.ID(ids.NewID(bytes))
+	
+	// Use the bytes to create the ID
+	hasher := sha256.New()
+	hasher.Write(bytes)
+	copy(tx.ID_[:], hasher.Sum(nil))
 
 	return tx, nil
 }
@@ -77,12 +83,22 @@ func (tx *Transaction) Status() choices.Status {
 }
 
 // Bytes returns the byte representation of the transaction
-func (tx *Transaction) Bytes() ([]byte, error) {
-	if tx.bytes != nil {
-		return tx.bytes, nil
+func (tx *Transaction) Bytes() []byte {
+	if tx.bytes == nil {
+		// Generate bytes if not already cached
+		bytes, err := tx.generateBytes()
+		if err != nil {
+			// In case of error, return a default value
+			return []byte{}
+		}
+		tx.bytes = bytes
 	}
-	bytes := []byte(fmt.Sprintf("%s-%s-%d-%d", tx.Sender, tx.Recipient, tx.Amount, tx.Nonce))
-	return bytes, nil
+	return tx.bytes
+}
+
+// generateBytes creates the byte representation of the transaction
+func (tx *Transaction) generateBytes() ([]byte, error) {
+	return []byte(fmt.Sprintf("%s-%s-%d-%d", tx.Sender, tx.Recipient, tx.Amount, tx.Nonce)), nil
 }
 
 // Verify checks if the transaction is valid
@@ -136,4 +152,10 @@ func (tx *Transaction) VerifySignature(publicKey []byte) bool {
 // AddDependency adds a transaction as a dependency
 func (tx *Transaction) AddDependency(dep snowstorm.Tx) {
 	tx.deps = append(tx.deps, dep)
+}
+
+// MissingDependencies returns the missing dependencies of the transaction
+func (tx *Transaction) MissingDependencies() (set.Set[ids.ID], error) {
+	// For simplicity, we'll just return an empty set since we don't track missing dependencies
+	return set.Set[ids.ID]{}, nil
 } 
