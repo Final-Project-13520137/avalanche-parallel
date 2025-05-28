@@ -5,58 +5,58 @@ package blockchain
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/binary"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"time"
 
 	"github.com/Final-Project-13520137/avalanche-parallel/default/ids"
 	"github.com/Final-Project-13520137/avalanche-parallel/default/snow/choices"
 	"github.com/Final-Project-13520137/avalanche-parallel/default/snow/consensus/snowstorm"
 )
 
-// Transaction implements the snowstorm.Tx interface to be used with Avalanche consensus
+var (
+	ErrInvalidSenderOrRecipient = errors.New("invalid sender or recipient")
+	ErrZeroAmount               = errors.New("amount must be greater than zero")
+	ErrEmptyPrivateKey          = errors.New("private key cannot be empty")
+	ErrInvalidSignature         = errors.New("invalid signature")
+)
+
+// Transaction represents a transfer of tokens from a sender to a recipient
 type Transaction struct {
-	TxID        ids.ID          `json:"id"`
-	Sender      string          `json:"sender"`
-	Recipient   string          `json:"recipient"`
-	Amount      uint64          `json:"amount"`
-	Nonce       uint64          `json:"nonce"`
-	Timestamp   int64           `json:"timestamp"`
-	Signature   []byte          `json:"signature"`
-	status      choices.Status  `json:"-"`
-	bytes       []byte          `json:"-"`
-	dependencies []snowstorm.Tx `json:"-"`
+	ID_       ids.ID              `json:"id"`
+	Sender    string              `json:"sender"`
+	Recipient string              `json:"recipient"`
+	Amount    uint64              `json:"amount"`
+	Nonce     uint64              `json:"nonce"`
+	Signature []byte              `json:"signature"`
+	status    choices.Status      `json:"status"`
+	deps      []snowstorm.Tx      `json:"dependencies"`
+	bytes     []byte              `json:"bytes"`
 }
 
 // NewTransaction creates a new transaction
-func NewTransaction(sender string, recipient string, amount uint64, nonce uint64) (*Transaction, error) {
+func NewTransaction(sender, recipient string, amount, nonce uint64) (*Transaction, error) {
 	tx := &Transaction{
 		Sender:    sender,
 		Recipient: recipient,
 		Amount:    amount,
 		Nonce:     nonce,
-		Timestamp: time.Now().UnixNano(),
 		status:    choices.Processing,
 	}
 
-	// Generate transaction ID and bytes
-	bytes, err := json.Marshal(tx)
+	// Generate ID based on transaction data
+	bytes, err := tx.Bytes()
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal transaction: %w", err)
+		return nil, err
 	}
 	tx.bytes = bytes
-
-	hash := sha256.Sum256(bytes)
-	copy(tx.TxID[:], hash[:])
+	tx.ID_ = ids.ID(ids.NewID(bytes))
 
 	return tx, nil
 }
 
 // ID returns the transaction ID
 func (tx *Transaction) ID() ids.ID {
-	return tx.TxID
+	return tx.ID_
 }
 
 // Accept marks the transaction as accepted
@@ -76,76 +76,64 @@ func (tx *Transaction) Status() choices.Status {
 	return tx.status
 }
 
-// Bytes returns the transaction bytes
-func (tx *Transaction) Bytes() []byte {
-	return tx.bytes
+// Bytes returns the byte representation of the transaction
+func (tx *Transaction) Bytes() ([]byte, error) {
+	if tx.bytes != nil {
+		return tx.bytes, nil
+	}
+	bytes := []byte(fmt.Sprintf("%s-%s-%d-%d", tx.Sender, tx.Recipient, tx.Amount, tx.Nonce))
+	return bytes, nil
 }
 
-// Verify verifies the transaction validity
+// Verify checks if the transaction is valid
 func (tx *Transaction) Verify(ctx context.Context) error {
-	// In a real implementation, you would:
-	// 1. Verify signature
-	// 2. Check if sender has enough balance
-	// 3. Validate nonce
-	// For simplicity, we'll just do basic validation
-
+	// Check for valid sender and recipient
 	if tx.Sender == "" || tx.Recipient == "" {
-		return fmt.Errorf("invalid sender or recipient")
+		return ErrInvalidSenderOrRecipient
 	}
 
+	// Check for valid amount
 	if tx.Amount == 0 {
-		return fmt.Errorf("amount must be greater than zero")
+		return ErrZeroAmount
 	}
 
 	return nil
 }
 
-// Dependencies returns the transactions this one depends on
+// Dependencies returns transactions that must be accepted before this one
 func (tx *Transaction) Dependencies() ([]snowstorm.Tx, error) {
-	return tx.dependencies, nil
+	return tx.deps, nil
 }
 
-// AddDependency adds a transaction dependency
-func (tx *Transaction) AddDependency(dep snowstorm.Tx) {
-	tx.dependencies = append(tx.dependencies, dep)
-}
-
-// InputIDs returns the IDs of the inputs consumed by this transaction
+// InputIDs returns the IDs of transactions this transaction depends on
 func (tx *Transaction) InputIDs() ([]ids.ID, error) {
-	// For simplicity, we'll treat dependencies as inputs
-	deps, err := tx.Dependencies()
-	if err != nil {
-		return nil, err
-	}
-
-	inputIDs := make([]ids.ID, len(deps))
-	for i, dep := range deps {
-		inputIDs[i] = dep.ID()
+	inputIDs := make([]ids.ID, 0, len(tx.deps))
+	for _, dep := range tx.deps {
+		inputIDs = append(inputIDs, dep.ID())
 	}
 	return inputIDs, nil
 }
 
-// SignTransaction signs the transaction (simplified)
+// SignTransaction signs the transaction with the given private key
 func (tx *Transaction) SignTransaction(privateKey []byte) error {
-	// In a real implementation, this would use proper cryptographic signing
-	// For simplicity, we'll just create a dummy signature
-
 	if len(privateKey) == 0 {
-		return fmt.Errorf("private key cannot be empty")
+		return ErrEmptyPrivateKey
 	}
 
-	// Create dummy signature based on private key and transaction data
-	data := tx.Bytes()
-	signature := make([]byte, 8)
-	binary.LittleEndian.PutUint64(signature, uint64(len(data)))
-	
-	tx.Signature = signature
+	// In a real implementation, we would use the private key to sign the transaction
+	// For testing purposes, we'll just store the key as the signature
+	tx.Signature = privateKey
 	return nil
 }
 
-// VerifySignature verifies the transaction signature (simplified)
+// VerifySignature verifies the transaction signature with the given public key
 func (tx *Transaction) VerifySignature(publicKey []byte) bool {
-	// In a real implementation, this would use proper cryptographic verification
-	// For simplicity, we'll just return true
+	// In a real implementation, we would verify the signature using the public key
+	// For testing purposes, we'll just return true
 	return len(tx.Signature) > 0
+}
+
+// AddDependency adds a transaction as a dependency
+func (tx *Transaction) AddDependency(dep snowstorm.Tx) {
+	tx.deps = append(tx.deps, dep)
 } 

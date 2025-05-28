@@ -4,7 +4,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -18,64 +17,54 @@ import (
 
 func main() {
 	// Parse command line flags
-	parallelism := flag.Int("parallelism", 4, "Maximum parallelism for consensus")
-	apiPort := flag.Int("api-port", 8545, "API server port")
+	port := flag.Int("port", 8545, "API server port")
+	parallelism := flag.Int("parallelism", 4, "Maximum level of parallelism")
 	logLevel := flag.String("log-level", "info", "Logging level (debug, info, warn, error)")
 	flag.Parse()
 
-	// Initialize logger
+	// Setup logger
 	logFactory := logging.NewFactory(logging.Config{
 		DisplayLevel: *logLevel,
+		LogLevel:     *logLevel,
 	})
-	logger, err := logFactory.Make("avalanche-blockchain")
+	log, err := logFactory.Make("blockchain")
 	if err != nil {
-		fmt.Printf("Failed to initialize logger: %v\n", err)
+		fmt.Printf("Failed to create logger: %s\n", err)
 		os.Exit(1)
 	}
 
-	// Create blockchain node
-	nodeConfig := blockchain.NodeConfig{
+	// Create node config
+	config := blockchain.NodeConfig{
 		MaxParallelism: *parallelism,
-		APIPort:        *apiPort,
+		APIPort:        *port,
 	}
 
-	node, err := blockchain.NewNode(logger, nodeConfig)
+	// Create and start node
+	log.Info("Starting Avalanche Parallel Blockchain node...")
+	node, err := blockchain.NewNode(log, config)
 	if err != nil {
-		logger.Fatal("Failed to create blockchain node: %s", err)
+		log.Fatal("Failed to create node: %s", err)
 	}
 
-	// Start the node
 	if err := node.Start(); err != nil {
-		logger.Fatal("Failed to start blockchain node: %s", err)
+		log.Fatal("Failed to start node: %s", err)
 	}
 
-	logger.Info("Avalanche blockchain started with parallelism=%d, API port=%d", *parallelism, *apiPort)
-	logger.Info("Press Ctrl+C to stop the node")
+	log.Info("Node started successfully")
+	log.Info("API server running on port %d", *port)
+	log.Info("Press Ctrl+C to stop")
 
-	// Setup graceful shutdown
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	// Wait for shutdown signal
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
 
-	// Wait for termination signal
-	<-signalChan
-	logger.Info("Shutdown signal received, stopping node...")
-
-	// Create a timeout context for shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Stop the node
+	log.Info("Shutting down...")
 	if err := node.Stop(); err != nil {
-		logger.Error("Error stopping node: %s", err)
-		os.Exit(1)
+		log.Error("Error during shutdown: %s", err)
 	}
 
-	// Wait for context timeout or completion
-	<-ctx.Done()
-	if ctx.Err() == context.DeadlineExceeded {
-		logger.Error("Shutdown timed out")
-		os.Exit(1)
-	}
-
-	logger.Info("Node stopped successfully")
+	// Give time for cleanup
+	time.Sleep(1 * time.Second)
+	log.Info("Node stopped")
 } 
