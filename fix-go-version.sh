@@ -8,13 +8,14 @@ echo -e "This script fixes Go version and toolchain issues in go.mod\n"
 echo -e "\e[1;33mCreating backup of go.mod...\e[0m"
 cp go.mod go.mod.bak
 
-# Fix the Go version (change 1.23.9 to a proper format like 1.18)
-echo -e "\e[1;32mFixing Go version...\e[0m"
+# Fix the go version and remove toolchain directive
+echo -e "\e[1;32mFixing go.mod file...\e[0m"
+
+# Replace invalid Go version with 1.18
 sed -i 's/go 1.23.9/go 1.18/g' go.mod
 
-# Remove the toolchain directive
-echo -e "\e[1;32mRemoving toolchain directive...\e[0m"
-sed -i '/toolchain go1.24.3/d' go.mod
+# Remove toolchain directive
+sed -i '/toolchain/d' go.mod
 
 # Run go mod tidy to clean up dependencies
 echo -e "\n\e[1;32mRunning go mod tidy...\e[0m"
