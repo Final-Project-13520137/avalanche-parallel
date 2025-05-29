@@ -89,4 +89,19 @@ else {
     Write-Host "`nResults saved to the benchmark-results directory" -ForegroundColor Green
 }
 
-Write-Host "`nBenchmark completed!" -ForegroundColor Cyan 
+Write-Host "`nBenchmark completed!" -ForegroundColor Cyan
+
+# Run visualization tool
+Write-Host "`nGenerating visualization graphs..." -ForegroundColor Cyan
+
+# Check if go-chart is installed
+$goChartInstalled = go list github.com/wcharczuk/go-chart/v2 2>$null
+if (-not $goChartInstalled) {
+    Write-Host "Installing required dependencies..." -ForegroundColor Yellow
+    go get github.com/wcharczuk/go-chart/v2
+}
+
+# Run the visualization tool
+go run .\scripts\visualize_benchmark.go
+
+Write-Host "`nAll tasks completed!" -ForegroundColor Cyan 

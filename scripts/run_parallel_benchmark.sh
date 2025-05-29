@@ -108,4 +108,16 @@ else
     echo -e "\n\e[1;32mResults saved to the benchmark-results directory\e[0m"
 fi
 
+# Add visualization generation
+echo -e "\n\e[1;36mGenerating visualization graphs...\e[0m"
+
+# Check if go-chart is installed
+if ! go list github.com/wcharczuk/go-chart/v2 &>/dev/null; then
+    echo -e "\e[1;33mInstalling required dependencies...\e[0m"
+    go get github.com/wcharczuk/go-chart/v2
+fi
+
+# Run the visualization tool
+go run ./scripts/visualize_benchmark.go
+
 echo -e "\n\e[1;36mBenchmark completed!\e[0m" 
