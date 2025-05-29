@@ -63,12 +63,16 @@ flowchart TD
             MN <--> API
             API <--> QB
             KO --> MN
-            KO --> WL
+            KO --> W1
+            KO --> W2
+            KO --> W3
             MON --> MN
-            MON --> WL
+            MON --> W1
+            MON --> W2
+            MON --> W3
         end
         
-        subgraph "WL: Worker Layer"
+        subgraph "Worker Layer"
             W1[Worker Pod 1]:::workerNode
             W2[Worker Pod 2]:::workerNode
             W3[Worker Pod N]:::workerNode
@@ -97,9 +101,10 @@ flowchart TD
                 MQ[(Message Queue)]:::storage
             end
             
-            CE[Consensus Engine] --> Storage
+            CE[Consensus Engine] --> DB
+            CE --> FS
+            CE --> MQ
             MN --- CE
-            MN --- Storage
         end
         
         subgraph "Monitoring Stack"
@@ -174,9 +179,11 @@ flowchart TD
     end
     
     %% Connections between layers
-    W1 & W2 & W3 -.-> "Worker Internals"
-    DAG -.-> "DAG Components"
-    VP -.-> VTX
+    W1 --> WM
+    W2 --> WM
+    W3 --> WM
+    DAG --> VTXS
+    VP --> VTX
     
     %% Styles
     classDef mainNode fill:#FF5000,stroke:#333,stroke-width:3px,color:white,font-weight:bold
