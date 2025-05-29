@@ -42,7 +42,7 @@ func SortByHash[T ~[]byte](s []T) {
 	sort.Slice(s, func(i, j int) bool {
 		iHash := hashing.ComputeHash256(s[i])
 		jHash := hashing.ComputeHash256(s[j])
-		return bytes.Compare(iHash, jHash) < 0
+		return bytes.Compare(iHash, jHash) < 0 < 0 < 0 < 0 < 0 < 0
 	})
 }
 
@@ -232,3 +232,8 @@ func IsSortedAndUniqueByHash[T ~[]byte](s []T) bool {
 	}
 	return true
 }
+
+
+
+
+

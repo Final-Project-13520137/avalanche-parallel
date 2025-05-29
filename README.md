@@ -272,20 +272,59 @@ chmod +x fixer/fix-go-version.sh fixer/fix-go-compatibility.sh
 ./fixer/fix-go-compatibility.sh
 
 # Then start the Docker services
-docker-compose up -d
+# Note: docker-compose.yml is now in the config directory
+docker-compose -f config/docker-compose.yml up -d
 
 # Scale worker nodes
-docker-compose up -d --scale worker=3
+docker-compose -f config/docker-compose.yml up -d --scale worker=3
 
 # Check service status
-docker-compose ps
+docker-compose -f config/docker-compose.yml ps
 
 # View logs
-docker-compose logs -f
+docker-compose -f config/docker-compose.yml logs -f
 
 # Stop all services
+docker-compose -f config/docker-compose.yml down
+```
+
+##### Using Helper Scripts (Easier)
+
+We've added helper scripts to make working with Docker Compose easier:
+
+```bash
+# Windows (PowerShell):
+# First make the script executable (one-time)
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+# Then use it as a replacement for docker-compose
+.\docker-compose.ps1 up -d
+.\docker-compose.ps1 ps
+.\docker-compose.ps1 logs -f
+.\docker-compose.ps1 down
+
+# Linux/macOS:
+# First make the script executable (one-time)
+chmod +x docker-compose.sh
+# Then use it as a replacement for docker-compose
+./docker-compose.sh up -d
+./docker-compose.sh ps
+./docker-compose.sh logs -f
+./docker-compose.sh down
+```
+
+##### Alternative Solution: Copy docker-compose.yml to Root Directory
+
+For convenience, we've also placed a copy of the docker-compose.yml file in the root directory, so you can use the standard docker-compose commands without specifying the file path:
+
+```bash
+# Standard docker-compose commands now work from the root directory
+docker-compose up -d
+docker-compose ps
+docker-compose logs -f
 docker-compose down
 ```
+
+Note: If you modify the original docker-compose.yml in the config directory, you'll need to copy it again to the root directory to keep them in sync.
 
 ### Running with Modified Ports
 
@@ -585,7 +624,17 @@ go build -o worker ./cmd/worker
 ./avalanche-parallel --network-id=local --staking-enabled=false --http-port=9650
 ./worker --api-port=9652 --threads=4
 
-# Option 2: Run with Docker Compose
+# Option 2: Run with Docker Compose (docker-compose.yml is now in config directory)
+docker-compose -f config/docker-compose.yml up -d
+
+# Option 3: Run using the helper scripts (easiest)
+# Windows (PowerShell):
+.\docker-compose.ps1 up -d
+
+# Linux/macOS:
+./docker-compose.sh up -d
+
+# Option 4: Run with the copy of docker-compose.yml in the root directory
 docker-compose up -d
 ```
 

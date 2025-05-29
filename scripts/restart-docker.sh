@@ -6,7 +6,7 @@ echo -e "This script restarts the Docker environment with port conflict resoluti
 
 # Step 1: Stop all running containers
 echo -e "\e[1;32mStep 1: Stopping all existing containers...\e[0m"
-docker-compose down
+docker-compose -f config/docker-compose.yml down
 if [ $? -ne 0 ]; then
     echo -e "  \e[1;33m! Warning: Issues stopping containers. Proceeding anyway...\e[0m"
 fi
@@ -37,7 +37,7 @@ check_port 19090 "Prometheus (modified)" || all_ports_available=false
 check_port 13000 "Grafana (modified)" || all_ports_available=false
 
 if [ "$all_ports_available" = false ]; then
-    echo -e "\n  \e[1;31m! Some ports are already in use. You may need to modify docker-compose.yml\e[0m"
+    echo -e "\n  \e[1;31m! Some ports are already in use. You may need to modify config/docker-compose.yml\e[0m"
     read -p $'\nDo you want to proceed anyway? (y/n) ' proceed
     if [ "$proceed" != "y" ]; then
         echo -e "\e[1;33mExiting script.\e[0m"
@@ -47,7 +47,7 @@ fi
 
 # Step 3: Start with clean containers
 echo -e "\n\e[1;32mStep 3: Starting containers...\e[0m"
-docker-compose up -d
+docker-compose -f config/docker-compose.yml up -d
 if [ $? -ne 0 ]; then
     echo -e "\n  \e[1;31m! Error starting containers. Checking for more specific issues...\e[0m"
     
@@ -57,7 +57,7 @@ if [ $? -ne 0 ]; then
     
     # Offer potential solutions
     echo -e "\n\e[1;36mPotential solutions:\e[0m"
-    echo "  1. Edit docker-compose.yml to change ports (current changes: Prometheus 19090, Grafana 13000)"
+    echo "  1. Edit config/docker-compose.yml to change ports (current changes: Prometheus 19090, Grafana 13000)"
     echo "  2. Stop conflicting services/applications using the same ports"
     echo "  3. Try running: docker system prune -f to clean up unused Docker resources"
     echo "  4. Check if you have multiple Docker Compose projects using the same container names"
@@ -66,16 +66,16 @@ if [ $? -ne 0 ]; then
     if [ "$restart" = "y" ]; then
         docker system prune -f
         echo -e "\n\e[1;32mTrying to start containers again...\e[0m"
-        docker-compose up -d
+        docker-compose -f config/docker-compose.yml up -d
     fi
 else
     # Step 4: Scale workers
     echo -e "\n\e[1;32mStep 4: Scaling worker service to 3 instances...\e[0m"
-    docker-compose up -d --scale worker=3
+    docker-compose -f config/docker-compose.yml up -d --scale worker=3
     
     # Step 5: Check services
     echo -e "\n\e[1;32mStep 5: Checking service status...\e[0m"
-    docker-compose ps
+    docker-compose -f config/docker-compose.yml ps
     
     echo -e "\nServices should be available at:"
     echo "  - Avalanche Node API: http://localhost:9650/ext/info"
