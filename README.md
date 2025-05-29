@@ -46,178 +46,123 @@ avalanche-parallel/
 
 # Avalanche Parallel DAG Implementation
 
+## System Architecture Overview
+
+The Avalanche Parallel DAG system is designed as a layered architecture with clear separation of concerns, shown in three levels of detail:
+
+### 1. High-Level Architecture
+
 <div align="center">
 
 ```mermaid
 flowchart TD
-    %% System Layers Division
-    subgraph "High-Level Architecture"
-        subgraph "System Components"
-            API[API Gateway]:::controller
-            MN[Avalanche Main Node]:::mainNode
-            QB[Queue Balancer]:::controller
-            
-            KO[Kubernetes Orchestration]:::k8s
-            MON[Monitoring System]:::monitoring
-            
-            MN <--> API
-            API <--> QB
-            KO --> MN
-            KO --> W1
-            KO --> W2
-            KO --> W3
-            MON --> MN
-            MON --> W1
-            MON --> W2
-            MON --> W3
-        end
-        
-        subgraph "Worker Layer"
-            W1[Worker Pod 1]:::workerNode
-            W2[Worker Pod 2]:::workerNode
-            W3[Worker Pod N]:::workerNode
-            
-            QB <--> W1 & W2 & W3
-        end
-    end
+    %% System Components
+    API[API Gateway]:::controller
+    MN[Avalanche Main Node]:::mainNode
+    QB[Queue Balancer]:::controller
     
-    %% Mid-Level Architecture
-    subgraph "Mid-Level Implementation"
-        subgraph "Main Node Components"
-            subgraph "Consensus Engine" 
-                DAG[DAG Manager]:::component
-                VP[Vertex Processor]:::component
-                DM[Dependency Manager]:::component
-                TS[Transaction Scheduler]:::component
-                
-                DAG <--> VP
-                VP <--> DM
-                DM <--> TS
-            end
-            
-            subgraph "Storage Systems"
-                DB[(Transaction DB)]:::storage
-                FS[(File System)]:::storage
-                MQ[(Message Queue)]:::storage
-            end
-            
-            CE[Consensus Engine] --> DB
-            CE --> FS
-            CE --> MQ
-            MN --- CE
-        end
-        
-        subgraph "Monitoring Stack"
-            PROM[Prometheus]:::monitoring
-            GRAF[Grafana]:::monitoring
-            ALERT[Alertmanager]:::monitoring
-            
-            PROM --> GRAF
-            PROM --> ALERT
-        end
-        
-        subgraph "Kubernetes Resources"
-            HPA[Horizontal Pod Autoscaler]:::k8s
-            SC[Service Controller]:::k8s
-            PVC[Persistent Volume Claims]:::k8s
-            SVC[Services]:::k8s
-        end
-    end
+    KO[Kubernetes Orchestration]:::k8s
+    MON[Monitoring System]:::monitoring
     
-    %% Low-Level Implementation
-    subgraph "Low-Level Implementation"
-        subgraph "Worker Internals"
-            subgraph "Thread Management"
-                WM[Worker Manager]:::component
-                T1[Thread 1]:::thread
-                T2[Thread 2]:::thread
-                T3[Thread 3]:::thread
-                TN[Thread N]:::thread
-                
-                WM --> T1 & T2 & T3 & TN
-            end
-            
-            subgraph "Memory Structures"
-                VTXQ[Vertex Queue]:::data
-                MEMPL[Memory Pool]:::data
-                LCK[Lock Manager]:::data
-                
-                T1 & T2 & T3 & TN --> VTXQ
-                T1 & T2 & T3 & TN --> MEMPL
-                T1 & T2 & T3 & TN --> LCK
-            end
-            
-            subgraph "Parallel Processing"
-                VTX[Vertex Processing]:::process
-                TXVLD[Transaction Validation]:::process
-                SIGN[Signature Verification]:::process
-                DEPS[Dependency Resolution]:::process
-                
-                T1 & T2 & T3 & TN --> VTX & TXVLD & SIGN & DEPS
-            end
-        end
-        
-        subgraph "Data Structures"
-            subgraph "DAG Components"
-                VTXS[Vertices]:::data
-                EDGES[Edges]:::data
-                FRNT[Frontier]:::data
-                
-                VTXS <--> EDGES
-                EDGES --> FRNT
-            end
-            
-            subgraph "Transaction Format"
-                HEADER[TX Header]:::data
-                PAYLOAD[TX Payload]:::data
-                SIG[Signatures]:::data
-                
-                HEADER --> PAYLOAD
-                HEADER --> SIG
-            end
-        end
-    end
+    %% Worker Layer
+    W1[Worker Pod 1]:::workerNode
+    W2[Worker Pod 2]:::workerNode
+    W3[Worker Pod N]:::workerNode
     
-    %% Connections between layers
-    W1 --> WM
-    W2 --> WM
-    W3 --> WM
-    DAG --> VTXS
-    VP --> VTX
+    %% Connections
+    MN <--> API
+    API <--> QB
+    QB <--> W1 & W2 & W3
+    
+    KO --> MN
+    KO --> W1 & W2 & W3
+    MON --> MN
+    MON --> W1 & W2 & W3
     
     %% Styles
     classDef mainNode fill:#FF5000,stroke:#333,stroke-width:3px,color:white,font-weight:bold
     classDef workerNode fill:#0078D7,stroke:#333,stroke-width:2px,color:white,font-weight:bold
     classDef controller fill:#FFA500,stroke:#333,stroke-width:2px,color:white,font-weight:bold
-    classDef component fill:#2ECC71,stroke:#333,stroke-width:2px,color:white,font-weight:bold
-    classDef storage fill:#8E44AD,stroke:#333,stroke-width:2px,color:white,font-weight:bold
-    classDef thread fill:#3498DB,stroke:#333,stroke-width:1px,color:white
-    classDef monitoring fill:#E74C3C,stroke:#333,stroke-width:2px,color:white
     classDef k8s fill:#34495E,stroke:#333,stroke-width:2px,color:white,font-weight:bold
-    classDef data fill:#27AE60,stroke:#333,stroke-width:1px,color:white
-    classDef process fill:#2980B9,stroke:#333,stroke-width:1px,color:white
+    classDef monitoring fill:#E74C3C,stroke:#333,stroke-width:2px,color:white,font-weight:bold
 ```
 
-*A multi-layered architecture showing the Avalanche Parallel DAG system from low-level implementation details to high-level system design*
+*High-level view of the system components and their interactions*
 
 </div>
-
-## 📋 System Architecture Overview
-
-The Avalanche Parallel DAG system is designed as a layered architecture with clear separation of concerns:
-
-### High-Level Architecture
 
 The top-level view focuses on the main system components and their interactions:
 
 - **API Gateway**: Entry point for transactions and queries
 - **Main Node**: Central coordinator for the entire system
 - **Queue Balancer**: Distributes work across worker nodes
-- **Worker Layer**: Distributed processing units that handle parallel execution
+- **Worker Pods**: Distributed processing units that handle parallel execution
 - **Kubernetes Orchestration**: Manages deployment and scaling
 - **Monitoring System**: Tracks system health and performance
 
-### Mid-Level Implementation
+### 2. Mid-Level Implementation
+
+<div align="center">
+
+```mermaid
+flowchart TD
+    %% Main Node and Components
+    MN[Avalanche Main Node]:::mainNode
+    
+    %% Consensus Engine
+    subgraph "Consensus Engine" 
+        DAG[DAG Manager]:::component
+        VP[Vertex Processor]:::component
+        DM[Dependency Manager]:::component
+        TS[Transaction Scheduler]:::component
+        
+        DAG <--> VP
+        VP <--> DM
+        DM <--> TS
+    end
+    
+    %% Storage Systems
+    subgraph "Storage Systems"
+        DB[(Transaction DB)]:::storage
+        FS[(File System)]:::storage
+        MQ[(Message Queue)]:::storage
+    end
+    
+    %% Monitoring Stack
+    subgraph "Monitoring Stack"
+        PROM[Prometheus]:::monitoring
+        GRAF[Grafana]:::monitoring
+        ALERT[Alertmanager]:::monitoring
+        
+        PROM --> GRAF
+        PROM --> ALERT
+    end
+    
+    %% Kubernetes Resources
+    subgraph "Kubernetes Resources"
+        HPA[Horizontal Pod Autoscaler]:::k8s
+        SC[Service Controller]:::k8s
+        PVC[Persistent Volume Claims]:::k8s
+        SVC[Services]:::k8s
+    end
+    
+    %% Connections
+    MN --- "Consensus Engine"
+    "Consensus Engine" --> DB
+    "Consensus Engine" --> FS
+    "Consensus Engine" --> MQ
+    
+    %% Styles
+    classDef mainNode fill:#FF5000,stroke:#333,stroke-width:3px,color:white,font-weight:bold
+    classDef component fill:#2ECC71,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef storage fill:#8E44AD,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef monitoring fill:#E74C3C,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef k8s fill:#34495E,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+```
+
+*Mid-level view showing the internal components of the system*
+
+</div>
 
 The middle layer details the internal components that power the system:
 
@@ -226,7 +171,72 @@ The middle layer details the internal components that power the system:
 - **Monitoring Stack**: Provides observability through Prometheus, Grafana, and alerts
 - **Kubernetes Resources**: Manages infrastructure with autoscalers, service controllers, and persistent storage
 
-### Low-Level Implementation
+### 3. Low-Level Implementation
+
+<div align="center">
+
+```mermaid
+flowchart TD
+    %% Worker Internals
+    subgraph "Thread Management"
+        WM[Worker Manager]:::component
+        T1[Thread 1]:::thread
+        T2[Thread 2]:::thread
+        T3[Thread 3]:::thread
+        TN[Thread N]:::thread
+        
+        WM --> T1 & T2 & T3 & TN
+    end
+    
+    subgraph "Memory Structures"
+        VTXQ[Vertex Queue]:::data
+        MEMPL[Memory Pool]:::data
+        LCK[Lock Manager]:::data
+    end
+    
+    subgraph "Parallel Processing"
+        VTX[Vertex Processing]:::process
+        TXVLD[Transaction Validation]:::process
+        SIGN[Signature Verification]:::process
+        DEPS[Dependency Resolution]:::process
+    end
+    
+    %% Data Structures
+    subgraph "DAG Components"
+        VTXS[Vertices]:::data
+        EDGES[Edges]:::data
+        FRNT[Frontier]:::data
+        
+        VTXS <--> EDGES
+        EDGES --> FRNT
+    end
+    
+    subgraph "Transaction Format"
+        HEADER[TX Header]:::data
+        PAYLOAD[TX Payload]:::data
+        SIG[Signatures]:::data
+        
+        HEADER --> PAYLOAD
+        HEADER --> SIG
+    end
+    
+    %% Connections
+    T1 & T2 & T3 & TN --> VTXQ
+    T1 & T2 & T3 & TN --> MEMPL
+    T1 & T2 & T3 & TN --> LCK
+    T1 & T2 & T3 & TN --> VTX & TXVLD & SIGN & DEPS
+    VTX --> VTXS
+    
+    %% Styles
+    classDef component fill:#2ECC71,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef thread fill:#3498DB,stroke:#333,stroke-width:1px,color:white
+    classDef data fill:#27AE60,stroke:#333,stroke-width:1px,color:white
+    classDef process fill:#2980B9,stroke:#333,stroke-width:1px,color:white
+```
+
+*Low-level view showing the detailed implementation and data structures*
+
+</div>
 
 The foundational layer focuses on the detailed implementation:
 
