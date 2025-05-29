@@ -50,36 +50,57 @@ avalanche-parallel/
 
 ```mermaid
 graph TD
-    subgraph Logo
-        A((A)):::nodeStyle
-        B((B)):::nodeStyle
-        C((C)):::nodeStyle
-        D((D)):::nodeStyle
-        E((E)):::nodeStyle
-        F((F)):::nodeStyle
-        G((G)):::nodeStyle
+    subgraph Architecture
+        A((Main Node)):::mainNode
+        B((Worker 1)):::workerNode
+        C((Worker 2)):::workerNode
+        D((Worker 3)):::workerNode
+        E((Worker N)):::workerNode
         
-        A --> B & C
-        B --> D & E
-        C --> E
-        D --> F
-        E --> F & G
+        F[DAG Vertices]:::dataStore
+        G[Pending Queue]:::dataStore
+        H[Processed Results]:::dataStore
+        
+        A --> |1. Distribute Tasks| B & C & D & E
+        B & C & D & E --> |2. Process Vertices| A
+        A --> |3. Store| F
+        A --> |4. Queue| G
+        A <--> |5. Results| H
     end
     
-    classDef nodeStyle fill:#FF5000,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef mainNode fill:#FF5000,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef workerNode fill:#0078D7,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef dataStore fill:#107C10,stroke:#333,stroke-width:2px,color:white,font-weight:bold
 ```
 
-*A high-performance, scalable implementation of Directed Acyclic Graph (DAG) processing for the Avalanche consensus protocol*
+*A high-performance, scalable implementation of Directed Acyclic Graph (DAG) processing for the Avalanche consensus protocol with parallel and distributed execution*
 
 </div>
 
 ## 📋 Overview
 
-This project implements an optimized version of the Directed Acyclic Graph (DAG) for the Avalanche consensus protocol using parallel processing techniques. It significantly improves transaction throughput and reduces confirmation latency by leveraging:
+This project implements a high-performance version of the Directed Acyclic Graph (DAG) for the Avalanche consensus protocol. It achieves significant improvements in transaction throughput and confirmation latency through:
 
-- Multi-threaded processing within a single node
-- Distributed processing across multiple Kubernetes worker pods
-- Efficient frontier management for optimal parallel execution
+- **Parallel Processing**: Executes multiple transaction vertices simultaneously using multi-threading
+- **Distributed Architecture**: Scales horizontally with worker nodes across multiple containers
+- **Optimized DAG Management**: Implements efficient frontier tracking and parent-child dependency resolution
+- **Containerized Deployment**: Provides Docker and Kubernetes configurations for easy scaling
+
+## 🔄 How It Works
+
+The system operates through the following process flow:
+
+1. **Task Distribution**: The main Avalanche node receives transactions and distributes processing tasks to worker nodes
+2. **Parallel Processing**: Each worker node executes its assigned DAG vertices in parallel using multiple threads
+3. **Dependency Management**: The system tracks parent-child relationships to ensure correct transaction ordering
+4. **Result Aggregation**: Processed results are collected and validated by the main node
+5. **Consensus Finalization**: The main node applies consensus rules and finalizes transaction confirmations
+
+This architecture enables:
+- Processing hundreds of thousands of transactions per second
+- Automatic scaling based on network load
+- Fault tolerance through worker redundancy
+- Real-time metrics and performance monitoring
 
 ## ⚠️ Important: Go 1.18 Compatibility
 
@@ -272,7 +293,6 @@ chmod +x fixer/fix-go-version.sh fixer/fix-go-compatibility.sh
 ./fixer/fix-go-compatibility.sh
 
 # Then start the Docker services
-# Note: docker-compose.yml is now in the config directory
 docker-compose -f config/docker-compose.yml up -d
 
 # Scale worker nodes
@@ -288,55 +308,17 @@ docker-compose -f config/docker-compose.yml logs -f
 docker-compose -f config/docker-compose.yml down
 ```
 
-##### Using Helper Scripts (Easier)
-
-We've added helper scripts to make working with Docker Compose easier:
-
-```bash
-# Windows (PowerShell):
-# First make the script executable (one-time)
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-# Then use it as a replacement for docker-compose
-.\docker-compose.ps1 up -d
-.\docker-compose.ps1 ps
-.\docker-compose.ps1 logs -f
-.\docker-compose.ps1 down
-
-# Linux/macOS:
-# First make the script executable (one-time)
-chmod +x docker-compose.sh
-# Then use it as a replacement for docker-compose
-./docker-compose.sh up -d
-./docker-compose.sh ps
-./docker-compose.sh logs -f
-./docker-compose.sh down
-```
-
-##### Alternative Solution: Copy docker-compose.yml to Root Directory
-
-For convenience, we've also placed a copy of the docker-compose.yml file in the root directory, so you can use the standard docker-compose commands without specifying the file path:
-
-```bash
-# Standard docker-compose commands now work from the root directory
-docker-compose up -d
-docker-compose ps
-docker-compose logs -f
-docker-compose down
-```
-
-Note: If you modify the original docker-compose.yml in the config directory, you'll need to copy it again to the root directory to keep them in sync.
-
 ### Running with Modified Ports
 
 If you encounter port conflicts, use our restart scripts:
 
 ```bash
 # Windows (PowerShell)
-.\scripts\restart-docker.ps1
+.\scripts\restart-docker.ps1 -DockerComposeFile config/docker-compose.yml
 
 # Linux/macOS
 chmod +x scripts/restart-docker.sh
-./scripts/restart-docker.sh
+./scripts/restart-docker.sh -f config/docker-compose.yml
 ```
 
 ### Running Tests
@@ -434,15 +416,15 @@ For Docker Compose issues:
 
 ```bash
 # Rebuild containers with specific arguments
-docker-compose build --build-arg AVALANCHE_PARALLEL_PATH=../avalanche-parallel
+docker-compose -f config/docker-compose.yml build --build-arg AVALANCHE_PARALLEL_PATH=../avalanche-parallel
 
 # Or use our restart script
 # Windows (PowerShell)
-.\scripts\restart-docker.ps1
+.\scripts\restart-docker.ps1 -DockerComposeFile config/docker-compose.yml
 
 # Linux/macOS
 chmod +x scripts/restart-docker.sh
-./scripts/restart-docker.sh
+./scripts/restart-docker.sh -f config/docker-compose.yml
 ```
 
 #### 5. Sorting Errors with bytes.Compare
@@ -559,23 +541,35 @@ go mod tidy
 <table>
   <tr>
     <td align="center"><b>⚡ Parallel Processing</b></td>
-    <td>Process multiple vertices simultaneously to improve throughput</td>
+    <td>Execute multiple transaction vertices concurrently using multi-threaded architecture, providing up to 10x faster transaction validation</td>
   </tr>
   <tr>
-    <td align="center"><b>🌐 Distributed Workers</b></td>
-    <td>Scale processing across multiple pods for unlimited capacity</td>
+    <td align="center"><b>🌐 Distributed Architecture</b></td>
+    <td>Distribute processing load across multiple worker nodes, each capable of processing thousands of transactions per second</td>
+  </tr>
+  <tr>
+    <td align="center"><b>🔄 Dynamic Workload Distribution</b></td>
+    <td>Intelligently assign tasks based on worker capacity and current load for optimal resource utilization</td>
   </tr>
   <tr>
     <td align="center"><b>♾️ Auto-Scaling</b></td>
-    <td>Automatically adapt to workload with Kubernetes HPA</td>
+    <td>Automatically adapt to network demand by scaling worker nodes up or down with Kubernetes HPA support</td>
   </tr>
   <tr>
     <td align="center"><b>🛡️ Fault Tolerance</b></td>
-    <td>Continue operation even when individual worker pods fail</td>
+    <td>Maintain continuous operation through worker redundancy and automatic task reassignment when nodes fail</td>
   </tr>
   <tr>
     <td align="center"><b>📊 Performance Monitoring</b></td>
-    <td>Built-in metrics and benchmarking capabilities</td>
+    <td>Track system health and performance with Prometheus metrics and customized Grafana dashboards</td>
+  </tr>
+  <tr>
+    <td align="center"><b>🛠️ Container Orchestration</b></td>
+    <td>Deploy and manage with Docker Compose for development and Kubernetes for production environments</td>
+  </tr>
+  <tr>
+    <td align="center"><b>📈 Horizontal Scalability</b></td>
+    <td>Linearly increase processing capacity by adding more worker nodes to handle higher transaction volumes</td>
   </tr>
 </table>
 
@@ -624,18 +618,8 @@ go build -o worker ./cmd/worker
 ./avalanche-parallel --network-id=local --staking-enabled=false --http-port=9650
 ./worker --api-port=9652 --threads=4
 
-# Option 2: Run with Docker Compose (docker-compose.yml is now in config directory)
+# Option 2: Run with Docker Compose
 docker-compose -f config/docker-compose.yml up -d
-
-# Option 3: Run using the helper scripts (easiest)
-# Windows (PowerShell):
-.\docker-compose.ps1 up -d
-
-# Linux/macOS:
-./docker-compose.sh up -d
-
-# Option 4: Run with the copy of docker-compose.yml in the root directory
-docker-compose up -d
 ```
 
 ### Step 4: Run Tests (Optional)

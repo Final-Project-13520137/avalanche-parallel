@@ -15,8 +15,8 @@ RUN mkdir -p /go/src/github.com/Final-Project-13520137
 RUN ln -s /avalanche-parallel /go/src/github.com/Final-Project-13520137/avalanche-parallel
 
 # Fix Go version issues before building
-RUN chmod +x fix-go-version.sh
-RUN ./fix-go-version.sh
+RUN chmod +x fixer/fix-go-version.sh
+RUN ./fixer/fix-go-version.sh
 
 # Build the binary
 RUN go build -o /bin/avalanche-node ./cmd/avalanche

@@ -4,7 +4,7 @@ services:
   # Avalanche node dengan engine paralel
   avalanche-node:
     build:
-      context: .
+      context: ..
       dockerfile: deployments/docker/Dockerfile.node
       args:
         - AVALANCHE_PARALLEL_PATH=../avalanche-parallel
@@ -33,7 +33,7 @@ services:
   # Worker nodes untuk pemrosesan paralel (dapat di-scale sesuai kebutuhan)
   worker:
     build:
-      context: .
+      context: ..
       dockerfile: deployments/docker/Dockerfile.worker
       args:
         - AVALANCHE_PARALLEL_PATH=../avalanche-parallel
@@ -64,7 +64,7 @@ services:
     ports:
       - "19090:9090"
     volumes:
-      - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -82,8 +82,8 @@ services:
       - "13000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./deployments/grafana/provisioning:/etc/grafana/provisioning
-      - ./deployments/grafana/dashboards:/var/lib/grafana/dashboards
+      - ../deployments/grafana/provisioning:/etc/grafana/provisioning
+      - ../deployments/grafana/dashboards:/var/lib/grafana/dashboards
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
