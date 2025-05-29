@@ -1,0 +1,109 @@
+# Create Docker Compose file
+$content = @'
+version: '3.8'
+
+services:
+  # Avalanche node dengan engine paralel
+  avalanche-node:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.node
+      args:
+        - AVALANCHE_PARALLEL_PATH=../avalanche-parallel
+    ports:
+      - "9650:9650"  # API
+      - "9651:9651"  # P2P
+    volumes:
+      - avalanche-data:/root/.avalanchego
+      - ${AVALANCHE_PARALLEL_PATH:-../avalanche-parallel}:/avalanche-parallel
+    environment:
+      - NETWORK=local
+      - LOG_LEVEL=info
+      - MAX_PROCESSING_THREADS=4
+      - GOPATH=/go
+      - GO111MODULE=on
+    networks:
+      - avalanche-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9650/ext/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Worker nodes untuk pemrosesan paralel (dapat di-scale sesuai kebutuhan)
+  worker:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.worker
+      args:
+        - AVALANCHE_PARALLEL_PATH=../avalanche-parallel
+    environment:
+      - LOG_LEVEL=info
+      - PORT=9652
+      - MAX_PROCESSING_THREADS=4
+      - GOPATH=/go
+      - GO111MODULE=on
+    networks:
+      - avalanche-network
+    depends_on:
+      - avalanche-node
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9652/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Monitoring menggunakan Prometheus
+  prometheus:
+    image: prom/prometheus:v2.37.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - avalanche-network
+    restart: unless-stopped
+
+  # Visualisasi menggunakan Grafana
+  grafana:
+    image: grafana/grafana:9.0.5
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deployments/grafana/provisioning:/etc/grafana/provisioning
+      - ./deployments/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    networks:
+      - avalanche-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  avalanche-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  avalanche-network:
+    driver: bridge
+'@
+
+# Write content to file
+$content | Set-Content -Path docker-compose.yml
+
+Write-Host "docker-compose.yml created successfully!" 

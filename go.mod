@@ -1,6 +1,8 @@
 module github.com/Final-Project-13520137/avalanche-parallel-dag
 
-go 1.18
+go 1.23.9
+
+toolchain go1.24.3
 
 replace github.com/ava-labs/avalanchego => ./default
 

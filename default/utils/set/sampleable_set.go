@@ -1,238 +1,172 @@
-// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2022, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package set
 
 import (
-	"bytes"
 	"encoding/json"
-
-	"github.com/ava-labs/avalanchego/utils"
-	"github.com/ava-labs/avalanchego/utils/sampler"
-	"github.com/ava-labs/avalanchego/utils/slices"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
-
-	avajson "github.com/ava-labs/avalanchego/utils/json"
+	"fmt"
+	"math/rand"
+	"strings"
 )
 
-var _ json.Marshaler = (*Set[int])(nil)
-
-// SampleableSet is a set of elements that supports sampling.
+// SampleableSet is a set that supports sampling its elements
 type SampleableSet[T comparable] struct {
-	// indices maps the element in the set to the index that it appears in
-	// elements.
-	indices  map[T]int
-	elements []T
+	set            Set[T]
+	elements       []T
+	sampledIndices Set[int]
 }
 
-// OfSampleable returns a Set initialized with [elts]
-func OfSampleable[T comparable](elts ...T) SampleableSet[T] {
-	s := NewSampleableSet[T](len(elts))
-	s.Add(elts...)
+// OfSampleable returns a new set initialized with [elems]
+func OfSampleable[T comparable](elems ...T) SampleableSet[T] {
+	s := NewSampleableSet[T](len(elems))
+	for _, elem := range elems {
+		s.Add(elem)
+	}
 	return s
 }
 
-// Return a new sampleable set with initial capacity [size].
-// More or less than [size] elements can be added to this set.
-// Using NewSampleableSet() rather than SampleableSet[T]{} is just an
-// optimization that can be used if you know how many elements will be put in
-// this set.
+// NewSampleableSet returns a new empty set with capacity [size]
 func NewSampleableSet[T comparable](size int) SampleableSet[T] {
-	if size < 0 {
-		return SampleableSet[T]{}
-	}
 	return SampleableSet[T]{
-		indices:  make(map[T]int, size),
-		elements: make([]T, 0, size),
+		set:            make(Set[T], size),
+		elements:       make([]T, 0, size),
+		sampledIndices: make(Set[int], size),
 	}
 }
 
-// Add all the elements to this set.
-// If the element is already in the set, nothing happens.
-func (s *SampleableSet[T]) Add(elements ...T) {
-	s.resize(2 * len(elements))
-	for _, e := range elements {
-		s.add(e)
+// Add adds an element to this set
+func (s *SampleableSet[T]) Add(element T) {
+	if s.set.Contains(element) {
+		return
 	}
+	s.set.Add(element)
+	s.elements = append(s.elements, element)
 }
 
-// Union adds all the elements from the provided set to this set.
-func (s *SampleableSet[T]) Union(set SampleableSet[T]) {
-	s.resize(2 * set.Len())
-	for _, e := range set.elements {
-		s.add(e)
-	}
+// Contains returns true if the element is in the set
+func (s *SampleableSet[T]) Contains(element T) bool {
+	return s.set.Contains(element)
 }
 
-// Difference removes all the elements in [set] from [s].
-func (s *SampleableSet[T]) Difference(set SampleableSet[T]) {
-	for _, e := range set.elements {
-		s.remove(e)
-	}
-}
-
-// Contains returns true iff the set contains this element.
-func (s SampleableSet[T]) Contains(e T) bool {
-	_, contains := s.indices[e]
-	return contains
-}
-
-// Overlaps returns true if the intersection of the set is non-empty
-func (s SampleableSet[T]) Overlaps(big SampleableSet[T]) bool {
-	small := s
-	if small.Len() > big.Len() {
-		small, big = big, small
-	}
-
-	for _, e := range small.elements {
-		if _, ok := big.indices[e]; ok {
-			return true
-		}
-	}
-	return false
-}
-
-// Len returns the number of elements in this set.
-func (s SampleableSet[_]) Len() int {
+// Len returns the number of elements in the set
+func (s *SampleableSet[T]) Len() int {
 	return len(s.elements)
 }
 
-// Remove all the given elements from this set.
-// If an element isn't in the set, it's ignored.
-func (s *SampleableSet[T]) Remove(elements ...T) {
-	for _, e := range elements {
-		s.remove(e)
-	}
-}
-
-// Clear empties this set
-func (s *SampleableSet[T]) Clear() {
-	s.indices = make(map[T]int, len(s.indices))
-	s.elements = make([]T, 0, cap(s.elements))
-}
-
-// List converts this set into a list
-func (s SampleableSet[T]) List() []T {
-	return slices.Clone(s.elements)
-}
-
-// Equals returns true if the sets contain the same elements
-func (s SampleableSet[T]) Equals(other SampleableSet[T]) bool {
-	if len(s.indices) != len(other.indices) {
+// Remove an element from the set.
+// Returns true if the element was in the set, and false otherwise.
+func (s *SampleableSet[T]) Remove(element T) bool {
+	// We handle the empty case here, rather than returning s.set.Contains(element)
+	// because s.set is nil when the set is empty.
+	if s.Len() == 0 {
 		return false
 	}
-	for k := range s.indices {
-		if _, ok := other.indices[k]; !ok {
-			return false
+
+	if !s.set.Contains(element) {
+		return false
+	}
+
+	// Get the last element in elements
+	lastIndex := len(s.elements) - 1
+	last := s.elements[lastIndex]
+
+	// Find the index of the element being removed
+	var i int
+	for i = 0; i < lastIndex; i++ {
+		if s.elements[i] == element {
+			break
 		}
 	}
+
+	// Move the last element to that index
+	s.elements[i] = last
+	// Remove the element from the set
+	s.set.Remove(element)
+	// Remove the last element from elements (which isn't necessary but may save memory)
+	s.elements[lastIndex] = *new(T)
+	s.elements = s.elements[:lastIndex]
 	return true
 }
 
-func (s SampleableSet[T]) Sample(numToSample int) []T {
-	if numToSample <= 0 {
-		return nil
+// Sample returns an element of the set sampled uniformly at random
+// If the set is empty, returns the empty value of type T and false
+func (s *SampleableSet[T]) Sample() (T, bool) {
+	if s.Len() == 0 {
+		var empty T
+		return empty, false
 	}
+	// Use a simple random index for Go 1.18 compatibility
+	idx := rand.Intn(s.Len())
+	return s.elements[idx], true
+}
 
-	uniform := sampler.NewUniform()
-	uniform.Initialize(uint64(len(s.elements)))
-	indices, _ := uniform.Sample(min(len(s.elements), numToSample))
-	elements := make([]T, len(indices))
-	for i, index := range indices {
-		elements[i] = s.elements[index]
+// List returns the elements of this set.
+func (s *SampleableSet[T]) List() []T {
+	elements := make([]T, len(s.elements))
+	copy(elements, s.elements)
+	return elements
+}
+
+// SampledList returns the elements of this set and marks them as having been sampled.
+func (s *SampleableSet[T]) SampledList() []T {
+	elements := make([]T, len(s.elements))
+	copy(elements, s.elements)
+	s.sampledIndices.Clear()
+	for i := range s.elements {
+		s.sampledIndices.Add(i)
 	}
 	return elements
 }
 
-func (s *SampleableSet[T]) UnmarshalJSON(b []byte) error {
-	str := string(b)
-	if str == avajson.Null {
-		return nil
+// ClearSampled clears the record of which elements have been sampled.
+func (s *SampleableSet[T]) ClearSampled() {
+	s.sampledIndices.Clear()
+}
+
+// Returns a new set with the same elements
+func (s *SampleableSet[T]) Clone() SampleableSet[T] {
+	clone := NewSampleableSet[T](s.Len())
+	for _, element := range s.elements {
+		clone.Add(element)
 	}
-	var elements []T
-	if err := json.Unmarshal(b, &elements); err != nil {
+	return clone
+}
+
+// String implements the stringer interface
+func (s *SampleableSet[T]) String() string {
+	var elements []string
+	for _, element := range s.elements {
+		elements = append(elements, fmt.Sprintf("%v", element))
+	}
+	return fmt.Sprintf("[%s]", strings.Join(elements, ", "))
+}
+
+// SampleableSetJSON allows SampleableSet to be marshalled into JSON
+type SampleableSetJSON[T comparable] struct {
+	Elements []T `json:"elements"`
+}
+
+// MarshalJSON marshals SampleableSet into JSON
+func (s *SampleableSet[T]) MarshalJSON() ([]byte, error) {
+	elements := s.List()
+	return json.Marshal(SampleableSetJSON[T]{
+		Elements: elements,
+	})
+}
+
+// UnmarshalJSON unmarshals SampleableSet from JSON
+func (s *SampleableSet[T]) UnmarshalJSON(b []byte) error {
+	var setJSON SampleableSetJSON[T]
+	err := json.Unmarshal(b, &setJSON)
+	if err != nil {
 		return err
 	}
-	s.Clear()
-	s.Add(elements...)
+
+	// Create a new set with the unmarshalled elements
+	*s = NewSampleableSet[T](len(setJSON.Elements))
+	for _, element := range setJSON.Elements {
+		s.Add(element)
+	}
 	return nil
 }
-
-func (s *SampleableSet[_]) MarshalJSON() ([]byte, error) {
-	var (
-		elementBytes = make([][]byte, len(s.elements))
-		err          error
-	)
-	for i, e := range s.elements {
-		elementBytes[i], err = json.Marshal(e)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// Sort for determinism - manual sort for Go 1.18 compatibility
-	for i := 0; i < len(elementBytes); i++ {
-		for j := i + 1; j < len(elementBytes); j++ {
-			if bytes.Compare(elementBytes[i], elementBytes[j]) > 0 {
-				elementBytes[i], elementBytes[j] = elementBytes[j], elementBytes[i]
-			}
-		}
-	}
-
-	// Build the JSON
-	var (
-		jsonBuf = bytes.Buffer{}
-		errs    = wrappers.Errs{}
-	)
-	_, err = jsonBuf.WriteString("[")
-	errs.Add(err)
-	for i, elt := range elementBytes {
-		_, err := jsonBuf.Write(elt)
-		errs.Add(err)
-		if i != len(elementBytes)-1 {
-			_, err := jsonBuf.WriteString(",")
-			errs.Add(err)
-		}
-	}
-	_, err = jsonBuf.WriteString("]")
-	errs.Add(err)
-
-	return jsonBuf.Bytes(), errs.Err
-}
-
-func (s *SampleableSet[T]) resize(size int) {
-	if s.elements == nil {
-		if minSetSize > size {
-			size = minSetSize
-		}
-		s.indices = make(map[T]int, size)
-	}
-}
-
-func (s *SampleableSet[T]) add(e T) {
-	_, ok := s.indices[e]
-	if ok {
-		return
-	}
-
-	s.indices[e] = len(s.elements)
-	s.elements = append(s.elements, e)
-}
-
-func (s *SampleableSet[T]) remove(e T) {
-	indexToRemove, ok := s.indices[e]
-	if !ok {
-		return
-	}
-
-	lastIndex := len(s.elements) - 1
-	if indexToRemove != lastIndex {
-		lastElement := s.elements[lastIndex]
-
-		s.indices[lastElement] = indexToRemove
-		s.elements[indexToRemove] = lastElement
-	}
-
-	delete(s.indices, e)
-	s.elements[lastIndex] = utils.Zero[T]()
-	s.elements = s.elements[:lastIndex]
-} 
