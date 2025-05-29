@@ -512,6 +512,115 @@ The benchmarks support multiple transaction size profiles:
 
 *Note: Actual results will vary based on your hardware. The benchmark creates detailed reports in the `benchmark-results` directory.*
 
+#### Benchmark Visualizations
+
+##### Processing Time Comparison
+
+```mermaid
+graph LR
+    title[<u>Processing Time Comparison</u>]
+    style title fill:none,stroke:none
+    
+    subgraph Traditional
+    T1[1 Thread: 3.45s]
+    end
+    
+    subgraph Parallel
+    P2[2 Threads: 1.91s]
+    P4[4 Threads: 1.15s]
+    P8[8 Threads: 0.78s]
+    end
+    
+    classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
+    classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
+    
+    class Traditional traditional
+    class Parallel,P2,P4,P8 parallel
+```
+
+##### Transactions Per Second
+
+```mermaid
+graph LR
+    title[<u>Transactions Per Second</u>]
+    style title fill:none,stroke:none
+    
+    T1[Traditional<br>1 Thread<br>1,449 tx/s]
+    P2[Parallel<br>2 Threads<br>2,618 tx/s]
+    P4[Parallel<br>4 Threads<br>4,348 tx/s]
+    P8[Parallel<br>8 Threads<br>6,410 tx/s]
+    
+    classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
+    classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
+    
+    class T1 traditional
+    class P2,P4,P8 parallel
+```
+
+##### Speedup Factor Comparison
+
+```mermaid
+graph LR
+    title[<u>Speedup Factor</u>]
+    style title fill:none,stroke:none
+    
+    T1[Traditional<br>1.00x]
+    P2[2 Threads<br>1.81x]
+    P4[4 Threads<br>3.00x]
+    P8[8 Threads<br>4.42x]
+    
+    classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
+    classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
+    
+    class T1 traditional
+    class P2,P4,P8 parallel
+```
+
+##### Test Case Performance
+
+```mermaid
+graph LR
+    title[<u>Test Case Performance (Processing Time in Seconds)</u>]
+    style title fill:none,stroke:none
+    
+    subgraph "Small Transactions"
+    TS_T["Traditional: 2.85s"]
+    TS_P["Parallel (8T): 0.62s"]
+    end
+    
+    subgraph "Medium Transactions"
+    TM_T["Traditional: 3.45s"]
+    TM_P["Parallel (8T): 0.78s"]
+    end
+    
+    subgraph "Large Transactions"
+    TL_T["Traditional: 4.21s"]
+    TL_P["Parallel (8T): 1.13s"]
+    end
+    
+    subgraph "Mixed Workload"
+    TMX_T["Traditional: 3.78s"]
+    TMX_P["Parallel (8T): 0.92s"]
+    end
+    
+    classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
+    classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
+    
+    class TS_T,TM_T,TL_T,TMX_T traditional
+    class TS_P,TM_P,TL_P,TMX_P parallel
+```
+
+##### Full Benchmark Comparison
+
+```mermaid
+xychart-beta
+    title "Traditional vs Parallel Performance"
+    x-axis [1, 2, 4, 8]
+    y-axis "Transactions/second" 1000 -> 7000
+    line [1449, 2618, 4348, 6410]
+    data-labels [1T, 2T, 4T, 8T]
+```
+
 #### How It Works
 
 The comprehensive benchmark tests:
