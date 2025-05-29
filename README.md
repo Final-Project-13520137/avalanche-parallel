@@ -539,35 +539,32 @@ flowchart TD
     
     TResults & PResults --> Comparison[Compare Results]
     Comparison --> Report[Generate Report]
-    Report --> End([End Benchmark])
+    Report --> EndNode([End Benchmark])
     
     classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
     classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
     classDef process fill:#FFFFCC,stroke:#333,stroke-width:1px
-    classDef start fill:#CCFFCC,stroke:#333,stroke-width:1px
-    classDef end fill:#FFCCCC,stroke:#333,stroke-width:1px
+    classDef startNode fill:#CCFFCC,stroke:#333,stroke-width:1px
+    classDef endNode fill:#FFCCCC,stroke:#333,stroke-width:1px
     
     class TraditionalTest,TS_Small,TM_Medium,TL_Large,TMix_Mixed,TResults traditional
     class ParallelTest,PS_Small,PM_Medium,PL_Large,PMix_Mixed,PResults parallel
     class TestPrep,Comparison,Report process
-    class Start,InputParams start
-    class End end
+    class Start,InputParams startNode
+    class EndNode endNode
 ```
 
 ##### Small Transaction Test Case
 
 ```mermaid
 flowchart LR
-    subgraph SmallTX[Small Transaction Test Case]
-        direction TB
-        STX_Gen[Generate 5000 Small Transactions] --> STX_T[Traditional Processing]
-        STX_Gen --> STX_P[Parallel Processing]
-        
-        STX_T --> STX_TR[Time: 2.85s]
-        STX_P --> STX_PR[Time: 0.62s]
-        
-        STX_TR & STX_PR --> STX_Comp[Speedup: 4.6x]
-    end
+    STX_Gen[Generate 5000 Small Transactions] --> STX_T[Traditional Processing]
+    STX_Gen --> STX_P[Parallel Processing]
+    
+    STX_T --> STX_TR[Time: 2.85s]
+    STX_P --> STX_PR[Time: 0.62s]
+    
+    STX_TR & STX_PR --> STX_Comp[Speedup: 4.6x]
     
     classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
     classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
@@ -580,16 +577,13 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph MediumTX[Medium Transaction Test Case]
-        direction TB
-        MTX_Gen[Generate 5000 Medium Transactions] --> MTX_T[Traditional Processing]
-        MTX_Gen --> MTX_P[Parallel Processing]
-        
-        MTX_T --> MTX_TR[Time: 3.45s]
-        MTX_P --> MTX_PR[Time: 0.78s]
-        
-        MTX_TR & MTX_PR --> MTX_Comp[Speedup: 4.4x]
-    end
+    MTX_Gen[Generate 5000 Medium Transactions] --> MTX_T[Traditional Processing]
+    MTX_Gen --> MTX_P[Parallel Processing]
+    
+    MTX_T --> MTX_TR[Time: 3.45s]
+    MTX_P --> MTX_PR[Time: 0.78s]
+    
+    MTX_TR & MTX_PR --> MTX_Comp[Speedup: 4.4x]
     
     classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
     classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
@@ -602,16 +596,13 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph LargeTX[Large Transaction Test Case]
-        direction TB
-        LTX_Gen[Generate 5000 Large Transactions] --> LTX_T[Traditional Processing]
-        LTX_Gen --> LTX_P[Parallel Processing]
-        
-        LTX_T --> LTX_TR[Time: 4.21s]
-        LTX_P --> LTX_PR[Time: 1.13s]
-        
-        LTX_TR & LTX_PR --> LTX_Comp[Speedup: 3.7x]
-    end
+    LTX_Gen[Generate 5000 Large Transactions] --> LTX_T[Traditional Processing]
+    LTX_Gen --> LTX_P[Parallel Processing]
+    
+    LTX_T --> LTX_TR[Time: 4.21s]
+    LTX_P --> LTX_PR[Time: 1.13s]
+    
+    LTX_TR & LTX_PR --> LTX_Comp[Speedup: 3.7x]
     
     classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
     classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
@@ -624,16 +615,13 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph MixedTX[Mixed Transaction Test Case]
-        direction TB
-        MixTX_Gen[Generate Mixed Transaction Sizes] --> MixTX_T[Traditional Processing]
-        MixTX_Gen --> MixTX_P[Parallel Processing]
-        
-        MixTX_T --> MixTX_TR[Time: 3.78s]
-        MixTX_P --> MixTX_PR[Time: 0.92s]
-        
-        MixTX_TR & MixTX_PR --> MixTX_Comp[Speedup: 4.1x]
-    end
+    MixTX_Gen[Generate Mixed Transaction Sizes] --> MixTX_T[Traditional Processing]
+    MixTX_Gen --> MixTX_P[Parallel Processing]
+    
+    MixTX_T --> MixTX_TR[Time: 3.78s]
+    MixTX_P --> MixTX_PR[Time: 0.92s]
+    
+    MixTX_TR & MixTX_PR --> MixTX_Comp[Speedup: 4.1x]
     
     classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
     classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
@@ -645,61 +633,41 @@ flowchart LR
 ##### Thread Scaling Performance
 
 ```mermaid
-flowchart TB
-    title[Thread Scaling Performance]
-    style title fill:none,stroke:none
-    
-    subgraph Threads[Thread Configuration]
-        T1[1 Thread<br>1,449 tx/s]
-        T2[2 Threads<br>2,618 tx/s]
-        T4[4 Threads<br>4,348 tx/s]
-        T8[8 Threads<br>6,410 tx/s]
-    end
-    
-    subgraph Scale[Scaling Factor]
-        S1[1.00x]
-        S2[1.81x]
-        S4[3.00x]
-        S8[4.42x]
-    end
-    
-    T1 --> S1
-    T2 --> S2
-    T4 --> S4
-    T8 --> S8
+flowchart TD
+    T1[1 Thread<br>1,449 tx/s<br>1.00x] --- T2[2 Threads<br>2,618 tx/s<br>1.81x]
+    T2 --- T4[4 Threads<br>4,348 tx/s<br>3.00x]
+    T4 --- T8[8 Threads<br>6,410 tx/s<br>4.42x]
     
     classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
     classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
     
-    class T1,S1 traditional
-    class T2,T4,T8,S2,S4,S8 parallel
+    class T1 traditional
+    class T2,T4,T8 parallel
 ```
 
 ##### Benchmark Summary
 
 ```mermaid
-graph TD
-    subgraph "Processing Time (Lower is Better)"
-        direction LR
-        PT_T1[Traditional: 3.45s]
-        PT_P2[2 Threads: 1.91s]
-        PT_P4[4 Threads: 1.15s]
-        PT_P8[8 Threads: 0.78s]
+flowchart TD
+    subgraph Traditional[Traditional Consensus]
+        PT_T1[Processing Time: 3.45s]
+        TPS_T1[Throughput: 1,449 tx/s]
     end
     
-    subgraph "Transactions Per Second (Higher is Better)"
-        direction LR
-        TPS_T1[Traditional: 1,449 tx/s]
-        TPS_P2[2 Threads: 2,618 tx/s]
-        TPS_P4[4 Threads: 4,348 tx/s]
-        TPS_P8[8 Threads: 6,410 tx/s]
+    subgraph Parallel[Parallel Consensus - 8 Threads]
+        PT_P8[Processing Time: 0.78s]
+        TPS_P8[Throughput: 6,410 tx/s]
     end
+    
+    Traditional --- Speedup[4.42x Speedup] --- Parallel
     
     classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
     classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
+    classDef comparison fill:#FFFFCC,stroke:#333,stroke-width:1px
     
-    class PT_T1,TPS_T1 traditional
-    class PT_P2,PT_P4,PT_P8,TPS_P2,TPS_P4,TPS_P8 parallel
+    class Traditional,PT_T1,TPS_T1 traditional
+    class Parallel,PT_P8,TPS_P8 parallel
+    class Speedup comparison
 ```
 
 #### How It Works
