@@ -378,7 +378,73 @@ avalanche-parallel/
 ./worker --api-port=9652 --threads=4
 ```
 
-## 🐳 Docker Deployment
+## 🧪 Testing
+
+The project includes several test scripts to verify functionality and performance.
+
+### Running Blockchain Tests
+
+```bash
+# Windows (PowerShell)
+.\scripts\run_blockchain_tests.ps1
+
+# Linux/macOS
+chmod +x scripts/run_blockchain_tests.sh
+./scripts/run_blockchain_tests.sh
+```
+
+The test script runs three types of tests:
+1. **Unit Tests**: Basic functionality tests for individual components
+2. **Blockchain Integration Tests**: Tests for the blockchain as a whole
+3. **Full Flow Tests**: End-to-end tests simulating real usage scenarios
+
+### Running Performance Benchmarks
+
+```bash
+# Windows (PowerShell)
+.\scripts\run_blockchain_tests.ps1 --benchmark
+
+# Linux/macOS
+chmod +x scripts/run_blockchain_tests.sh
+./scripts/run_blockchain_tests.sh --benchmark
+```
+
+The benchmark tests measure:
+- Parallel consensus performance
+- Transaction throughput
+- Block creation speed
+
+### Transaction Load Testing
+
+For comprehensive load testing, use the transaction load test script:
+
+```bash
+# Build and run the load test
+go run ./scripts/transaction_load_test.go
+```
+
+The load test simulates various scenarios:
+- Normal transactions
+- Double-spend attempts
+- High-value transactions
+- Micro transactions
+- Transaction bursts
+
+This script generates realistic network load to test system stability and performance under various conditions.
+
+### Simple Blockchain Test
+
+For a quick test of the blockchain functionality:
+
+```bash
+# Windows (PowerShell)
+.\scripts\runtest.ps1
+
+# Linux/macOS
+go run simple_test.go
+```
+
+## �� Docker Deployment
 
 Deploy the entire system using Docker Compose:
 
