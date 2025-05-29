@@ -543,7 +543,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 For questions or support, please open an issue on our GitHub repository.
 
 ---
-
-<div align="center">
-Made with ❤️ by the Avalanche Parallel DAG Team
-</div>
