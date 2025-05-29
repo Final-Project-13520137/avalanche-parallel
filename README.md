@@ -1,54 +1,61 @@
-# Avalanche Parallel DAG
+# <img src="https://raw.githubusercontent.com/ava-labs/avalanchego/master/staking/avalanche_logo_text.png" alt="Avalanche" height="40" /> Parallel DAG
 
-## Project Structure
+<div align="center">
 
-The project has been reorganized into a more modular structure:
+[![Go Version](https://img.shields.io/badge/Go-1.18-blue.svg)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Last Commit](https://img.shields.io/github/last-commit/Final-Project-13520137/avalanche-parallel-dag)](https://github.com/Final-Project-13520137/avalanche-parallel-dag/commits/main)
 
-```
-avalanche-parallel/
-├── bin/                # Executable binaries
-├── cmd/                # Command line applications
-│   ├── avalanche/      # Main Avalanche node implementation
-│   ├── benchmark/      # Benchmarking tools
-│   ├── blockchain/     # Blockchain CLI tools
-│   └── worker/         # Worker node implementation
-├── config/             # Configuration files
-│   ├── docker-compose.yml
-│   └── temp-docker-compose.yml
-├── default/            # Avalanche core fork (from avalanchego)
-├── deployments/        # Deployment configurations
-│   ├── docker/         # Docker deployment files
-│   ├── grafana/        # Grafana dashboards and configurations
-│   ├── kubernetes/     # Kubernetes deployment files
-│   └── prometheus/     # Prometheus configuration
-├── docs/               # Documentation
-├── fixer/              # Fix scripts for compatibility issues
-│   ├── fix-go-version.ps1  # Fix Go version in go.mod
-│   ├── fix-go-compatibility.ps1  # Fix Go compatibility issues
-│   └── ...
-├── gomod-backups/      # Backup of go.mod files
-├── logs/               # Log files
-├── pkg/                # Core packages
-│   ├── blockchain/     # Blockchain implementation
-│   ├── consensus/      # Consensus algorithms
-│   ├── scripts/        # Utility scripts
-│   ├── test/           # Test utilities
-│   ├── utils/          # Utility packages
-│   │   ├── compatibility/  # Go compatibility utilities
-│   │   ├── logging/        # Logging utilities
-│   │   ├── math/           # Math utilities
-│   │   ├── sampler/        # Sampling utilities
-│   │   └── set/            # Set data structure
-│   └── worker/         # Worker node implementation
-├── scripts/            # Helper scripts
-└── utils/              # Top-level utilities
-```
+**A high-performance, parallel implementation of the Avalanche consensus protocol with distributed DAG processing**
 
-# Avalanche Parallel DAG Implementation
+</div>
 
-## System Architecture Overview
+<hr />
 
-The Avalanche Parallel DAG system is designed as a layered architecture with clear separation of concerns, shown in three levels of detail:
+## 📑 Table of Contents
+- [Overview](#-overview)
+- [System Architecture](#-system-architecture)
+- [Features](#-features)
+- [Installation](#-installation)
+- [Usage](#-usage)
+- [Docker Deployment](#-docker-deployment)
+- [Troubleshooting](#-troubleshooting)
+- [Quick Reference](#-quick-reference)
+- [License](#-license)
+
+## 🔍 Overview
+
+Avalanche Parallel DAG significantly improves transaction throughput and reduces confirmation latency through:
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Key Capabilities
+- 🚀 **10x Faster Validation** through parallel transaction processing
+- 🌐 **Horizontal Scaling** with distributed worker nodes
+- 💪 **Enhanced Throughput** handling thousands of transactions per second
+- 🛡️ **Fault Tolerance** with automatic recovery
+- 📊 **Real-time Monitoring** via Prometheus and Grafana
+
+</td>
+<td width="50%" valign="top">
+
+### Technical Approach
+- Multi-threaded DAG vertex processing
+- Efficient frontier tracking with dependency resolution
+- Containerized deployment with Kubernetes
+- Automatic load balancing and queue management
+- Optimized consensus algorithm for parallel execution
+
+</td>
+</tr>
+</table>
+
+## 🏗 System Architecture
+
+The Avalanche Parallel DAG system is designed as a layered architecture with clear separation of concerns.
 
 ### 1. High-Level Architecture
 
@@ -91,7 +98,7 @@ flowchart TD
 
 </div>
 
-The top-level view focuses on the main system components and their interactions:
+The top-level architecture focuses on the main system components:
 
 - **API Gateway**: Entry point for transactions and queries
 - **Main Node**: Central coordinator for the entire system
@@ -160,9 +167,9 @@ flowchart TD
 
 </div>
 
-The middle layer details the internal components that power the system:
+The middle layer details the internal components:
 
-- **Consensus Engine**: Implements the Avalanche protocol with components for DAG management, vertex processing, dependency management, and transaction scheduling
+- **Consensus Engine**: Implements the Avalanche protocol with DAG management, vertex processing, dependency management, and transaction scheduling
 - **Storage Systems**: Handles data persistence with transaction database, file system, and message queue
 - **Monitoring Stack**: Provides observability through Prometheus, Grafana, and alerts
 - **Kubernetes Resources**: Manages infrastructure with autoscalers, service controllers, and persistent storage
@@ -234,69 +241,69 @@ flowchart TD
 
 </div>
 
-The foundational layer focuses on the detailed implementation:
+The foundational layer focuses on implementation details:
 
-- **Worker Internals**: 
-  - Thread Management: Controls parallel execution with multiple worker threads
-  - Memory Structures: Manages data with vertex queues, memory pools, and concurrency controls
-  - Parallel Processing: Executes vertex processing, transaction validation, signature verification, and dependency resolution
-- **Data Structures**:
-  - DAG Components: Represents the directed acyclic graph with vertices, edges, and frontier management
-  - Transaction Format: Defines the structure of transactions with headers, payloads, and signatures
+- **Worker Internals**: Thread management, memory structures, and parallel processing components
+- **Data Structures**: DAG components and transaction format details
+- **Process Flow**: How threads interact with various system components
 
-This layered approach allows the system to scale efficiently while maintaining the core performance benefits of parallel execution across distributed nodes.
+## ✨ Features
 
-## 🔄 How It Works
+<div class="features-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
 
-The system operates through the following process flow:
+<div class="feature-card" style="border: 1px solid #eee; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+  <h3>⚡ Parallel Processing</h3>
+  <p>Execute multiple transaction vertices concurrently using multi-threaded architecture, providing up to 10x faster transaction validation</p>
+</div>
 
-1. **Task Distribution**: The main Avalanche node receives transactions and distributes processing tasks to worker nodes
-2. **Parallel Processing**: Each worker node executes its assigned DAG vertices in parallel using multiple threads
-3. **Dependency Management**: The system tracks parent-child relationships to ensure correct transaction ordering
-4. **Result Aggregation**: Processed results are collected and validated by the main node
-5. **Consensus Finalization**: The main node applies consensus rules and finalizes transaction confirmations
+<div class="feature-card" style="border: 1px solid #eee; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+  <h3>🌐 Distributed Architecture</h3>
+  <p>Distribute processing load across multiple worker nodes, each capable of processing thousands of transactions per second</p>
+</div>
 
-This architecture enables:
-- Processing hundreds of thousands of transactions per second
-- Automatic scaling based on network load
-- Fault tolerance through worker redundancy
-- Real-time metrics and performance monitoring
+<div class="feature-card" style="border: 1px solid #eee; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+  <h3>🔄 Dynamic Workload Distribution</h3>
+  <p>Intelligently assign tasks based on worker capacity and current load for optimal resource utilization</p>
+</div>
 
-## ⚠️ Important: Go 1.18 Compatibility
+<div class="feature-card" style="border: 1px solid #eee; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+  <h3>♾️ Auto-Scaling</h3>
+  <p>Automatically adapt to network demand by scaling worker nodes up or down with Kubernetes HPA support</p>
+</div>
 
-This project **requires Go 1.18 specifically**. It is not compatible with newer Go versions due to dependency constraints.
+<div class="feature-card" style="border: 1px solid #eee; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+  <h3>🛡️ Fault Tolerance</h3>
+  <p>Maintain continuous operation through worker redundancy and automatic task reassignment when nodes fail</p>
+</div>
 
-Common issues and their solutions:
+<div class="feature-card" style="border: 1px solid #eee; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+  <h3>📊 Performance Monitoring</h3>
+  <p>Track system health and performance with Prometheus metrics and customized Grafana dashboards</p>
+</div>
 
-1. **Package Conflict in `utils` Directory**
-   - Error: `found packages utils (atomic.go) and main (sorting.go) in default/utils`
-   - Solution: Run our fix scripts to correct the package declaration
+<div class="feature-card" style="border: 1px solid #eee; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+  <h3>🛠️ Container Orchestration</h3>
+  <p>Deploy and manage with Docker Compose for development and Kubernetes for production environments</p>
+</div>
 
-2. **`bytes.Compare` Syntax Issues**
-   - Error: `bytes.Compare undefined (type [][]byte has no field or method Compare)`
-   - Solution: Our fix scripts update sorting.go with correct syntax
+<div class="feature-card" style="border: 1px solid #eee; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+  <h3>📈 Horizontal Scalability</h3>
+  <p>Linearly increase processing capacity by adding more worker nodes to handle higher transaction volumes</p>
+</div>
 
-3. **multierr Dependency Requiring Go 1.19+**
-   - Error: `go.uber.org/multierr: undefined: atomic.Bool` and `note: module requires Go 1.19`
-   - Solution: Our fix scripts downgrade dependencies to Go 1.18 compatible versions
+</div>
 
-For detailed troubleshooting, see [fixer/FIX-GO118-GUIDE.md](fixer/FIX-GO118-GUIDE.md).
-
-## 🚀 Installation and Setup Guide
-
-This section provides comprehensive instructions for installing, building, and running the Avalanche Parallel DAG system.
+## 📦 Installation
 
 ### Prerequisites
 
-- Go 1.18 (specifically requires Go 1.18, not later versions)
+- **Go 1.18** (specifically requires Go 1.18, not later versions)
 - Git
 - Docker and Docker Compose (for containerized deployment)
 - 4GB+ RAM
 - 20GB+ free disk space
 
-### Quick Start Guide
-
-For the fastest setup experience, follow these steps:
+### Quick Start
 
 ```bash
 # 1. Clone the repository
@@ -321,126 +328,59 @@ go build -o worker.exe .\cmd\worker
 # For Linux/macOS:
 go build -o avalanche-parallel ./cmd/avalanche
 go build -o worker ./cmd/worker
-
-# 4. Run the applications
-# For Windows:
-.\avalanche-parallel.exe --network-id=local --staking-enabled=false --http-port=9650
-# In another terminal:
-.\worker.exe --api-port=9652 --threads=4
-
-# For Linux/macOS:
-./avalanche-parallel --network-id=local --staking-enabled=false --http-port=9650
-# In another terminal:
-./worker --api-port=9652 --threads=4
 ```
 
-### Detailed Installation Steps
+### Project Structure
 
-#### Option 1: Clone Repository
+<details>
+<summary>Click to expand file structure</summary>
 
-```bash
-# Clone the repository
-git clone https://github.com/Final-Project-13520137/avalanche-parallel-dag.git
-cd avalanche-parallel-dag
-
-# Clone the Avalanche reference code into the default directory (if needed)
-git clone https://github.com/ava-labs/avalanchego.git default
+```
+avalanche-parallel/
+├── bin/                # Executable binaries
+├── cmd/                # Command line applications
+│   ├── avalanche/      # Main Avalanche node implementation
+│   ├── benchmark/      # Benchmarking tools
+│   ├── blockchain/     # Blockchain CLI tools
+│   └── worker/         # Worker node implementation
+├── config/             # Configuration files
+│   ├── docker-compose.yml
+│   └── temp-docker-compose.yml
+├── default/            # Avalanche core fork (from avalanchego)
+├── deployments/        # Deployment configurations
+├── docs/               # Documentation
+├── fixer/              # Fix scripts for compatibility issues
+├── pkg/                # Core packages
+│   ├── blockchain/     # Blockchain implementation
+│   ├── consensus/      # Consensus algorithms
+│   ├── utils/          # Utility packages
+│   └── worker/         # Worker node implementation
+└── scripts/            # Helper scripts
 ```
 
-#### Option 2: Download Release
+</details>
 
-```bash
-# Download the latest release
-curl -LO https://github.com/Final-Project-13520137/avalanche-parallel-dag/archive/refs/tags/v1.0.0.tar.gz
-tar -xzf v1.0.0.tar.gz
-cd avalanche-parallel-dag-1.0.0
-```
-
-### Essential: Go Version Compatibility
-
-This project requires Go 1.18 specifically. Follow these steps to ensure compatibility:
-
-#### Step 1: Fix Go Module Version
-
-```bash
-# Windows (PowerShell)
-.\fixer\fix-go-version.ps1
-
-# Linux/macOS
-chmod +x fixer/fix-go-version.sh
-./fixer/fix-go-version.sh
-```
-
-This will:
-- Update go.mod to use Go 1.18
-- Remove any toolchain directives
-- Run go mod tidy
-
-#### Step 2: Fix Go Compatibility Issues
-
-```bash
-# Windows (PowerShell)
-.\fixer\fix-go-compatibility.ps1
-
-# Linux/macOS
-chmod +x fixer/fix-go-compatibility.sh
-./fixer/fix-go-compatibility.sh
-```
-
-This will:
-- Create compatibility layers for newer Go packages (cmp, slices, maps)
-- Fix sorting.go implementation issues
-- Update set implementation for Go 1.18 compatibility
-
-### Building from Source
-
-After applying the compatibility fixes, build the binaries:
-
-#### Build the Main Binary
-
-```bash
-# Windows (PowerShell)
-go build -o avalanche-parallel.exe .\cmd\avalanche
-
-# Linux/macOS
-go build -o avalanche-parallel ./cmd/avalanche
-```
-
-#### Build Worker Nodes
-
-```bash
-# Windows (PowerShell)
-go build -o worker.exe .\cmd\worker
-
-# Linux/macOS
-go build -o worker ./cmd/worker
-```
+## 🚀 Usage
 
 ### Running the System
 
-#### Starting the Node (Standalone)
+#### Standalone Mode
 
 ```bash
 # Windows
 .\avalanche-parallel.exe --network-id=local --staking-enabled=false --http-port=9650
-
-# Linux/macOS
-./avalanche-parallel --network-id=local --staking-enabled=false --http-port=9650
-```
-
-#### Starting Worker Nodes (Standalone)
-
-```bash
-# Windows
+# In another terminal:
 .\worker.exe --api-port=9652 --threads=4
 
 # Linux/macOS
+./avalanche-parallel --network-id=local --staking-enabled=false --http-port=9650
+# In another terminal:
 ./worker --api-port=9652 --threads=4
 ```
 
-#### Using Docker Compose (Recommended)
+## 🐳 Docker Deployment
 
-Before using Docker Compose, ensure you've applied the compatibility fixes:
+Deploy the entire system using Docker Compose:
 
 ```bash
 # Fix Go compatibility first
@@ -452,127 +392,47 @@ chmod +x fixer/fix-go-version.sh fixer/fix-go-compatibility.sh
 ./fixer/fix-go-version.sh
 ./fixer/fix-go-compatibility.sh
 
-# Then start the Docker services
+# Start the Docker services
 docker-compose -f config/docker-compose.yml up -d
 
 # Scale worker nodes
 docker-compose -f config/docker-compose.yml up -d --scale worker=3
-
-# Check service status
-docker-compose -f config/docker-compose.yml ps
-
-# View logs
-docker-compose -f config/docker-compose.yml logs -f
-
-# Stop all services
-docker-compose -f config/docker-compose.yml down
-```
-
-### Running with Modified Ports
-
-If you encounter port conflicts, use our restart scripts:
-
-```bash
-# Windows (PowerShell)
-.\scripts\restart-docker.ps1 -DockerComposeFile config/docker-compose.yml
-
-# Linux/macOS
-chmod +x scripts/restart-docker.sh
-./scripts/restart-docker.sh -f config/docker-compose.yml
-```
-
-### Running Tests
-
-Before running tests, make sure you've applied the compatibility fixes:
-
-```bash
-# Fix Go compatibility first
-# Windows:
-.\fixer\fix-go-version.ps1
-.\fixer\fix-go-compatibility.ps1
-# Linux/macOS:
-chmod +x fixer/fix-go-version.sh fixer/fix-go-compatibility.sh
-./fixer/fix-go-version.sh
-./fixer/fix-go-compatibility.sh
-
-# Then run tests
-# Run all blockchain tests
-go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain
-
-# Run specific test categories
-go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestTransaction
-go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestBlock
-go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestBlockchain
-
-# Using test script (Windows)
-.\scripts\runtest.ps1
-
-# Using test script (Linux/macOS)
-chmod +x scripts/restart.sh
-./scripts/restart.sh
-```
-
-### Running Benchmarks
-
-```bash
-# Run benchmarks with 1000 vertices and 4 threads
-go run ./cmd/benchmark -vertices=1000 -threads=4
 ```
 
 ### Accessing Services
 
-Once running, you can access the following services:
+After deployment, you can access:
 
 - **Avalanche Node API**: http://localhost:9650/ext/info
 - **Worker API**: http://localhost:9652/health
-- **Prometheus**: http://localhost:19090 (modified port to avoid conflicts)
-- **Grafana**: http://localhost:13000 (modified port to avoid conflicts)
-  - Default credentials: username `admin`, password `admin`
+- **Prometheus**: http://localhost:19090
+- **Grafana**: http://localhost:13000 (admin/admin)
 
-### Troubleshooting Common Issues
+## ⚠️ Important: Go 1.18 Compatibility
 
-#### 1. Module Path Issues
+This project **requires Go 1.18 specifically**. It is not compatible with newer Go versions due to dependency constraints.
 
-If you encounter module path errors:
+<details>
+<summary>Common issues and solutions</summary>
 
-```bash
-# Windows (PowerShell)
-.\fixer\fix-module-path.ps1
+1. **Package Conflict in `utils` Directory**
+   - Error: `found packages utils (atomic.go) and main (sorting.go) in default/utils`
+   - Solution: Run our fix scripts to correct the package declaration
 
-# Linux/macOS
-chmod +x fixer/fix-module-path.sh
-./fixer/fix-module-path.sh
-```
+2. **`bytes.Compare` Syntax Issues**
+   - Error: `bytes.Compare undefined (type [][]byte has no field or method Compare)`
+   - Solution: Our fix scripts update sorting.go with correct syntax
 
-#### 2. Import Path Issues
+3. **multierr Dependency Requiring Go 1.19+**
+   - Error: `go.uber.org/multierr: undefined: atomic.Bool` and `note: module requires Go 1.19`
+   - Solution: Our fix scripts downgrade dependencies to Go 1.18 compatible versions
 
-For import path errors:
+For detailed troubleshooting, see [fixer/FIX-GO118-GUIDE.md](fixer/FIX-GO118-GUIDE.md).
+</details>
 
-```bash
-# Windows (PowerShell)
-.\fixer\fix-all-imports.ps1
+## 🔧 Troubleshooting
 
-# Linux/macOS
-chmod +x fixer/fix-all-imports.sh
-./fixer/fix-all-imports.sh
-```
-
-#### 3. Go Version Issues
-
-If you see errors about incompatible Go versions:
-
-```bash
-# Windows (PowerShell)
-.\fixer\fix-go-version.ps1
-
-# Linux/macOS
-chmod +x fixer/fix-go-version.sh
-./fixer/fix-go-version.sh
-```
-
-#### 4. Docker Compose Issues
-
-For Docker Compose issues:
+### Docker Compose Issues
 
 ```bash
 # Rebuild containers with specific arguments
@@ -587,153 +447,45 @@ chmod +x scripts/restart-docker.sh
 ./scripts/restart-docker.sh -f config/docker-compose.yml
 ```
 
-#### 5. Sorting Errors with bytes.Compare
+<details>
+<summary>More troubleshooting tips</summary>
 
-If you encounter syntax errors in sorting.go:
-
-```bash
-# Windows (PowerShell)
-.\fixer\fix-sorting.ps1
-
-# Linux/macOS - manually fix by copying sorting_fixed.go
-cp fixer/sorting_fixed.go default/utils/sorting.go
-```
-
-#### 6. Missing Package Errors (cmp, maps, slices)
-
-Apply the compatibility fixes to create compatible implementations:
+### Module Path Issues
 
 ```bash
 # Windows (PowerShell)
-.\fixer\fix-go-compatibility.ps1
+.\fixer\fix-module-path.ps1
 
 # Linux/macOS
-chmod +x fixer/fix-go-compatibility.sh
-./fixer/fix-go-compatibility.sh
+chmod +x fixer/fix-module-path.sh
+./fixer/fix-module-path.sh
 ```
 
-This will create:
-- cmp_compatibility.go
-- maps_compatibility.go  
-- slices_compatibility.go
-
-#### 7. Set Redeclaration Errors (on Linux)
-
-If you encounter "redeclared in this block" errors in the set package on Linux:
+### Import Path Issues
 
 ```bash
-# Linux/macOS
-chmod +x fixer/fix-set-duplicates-linux.sh
-./fixer/fix-set-duplicates-linux.sh
-```
-
-For Windows, use:
-```powershell
-.\fixer\fix-set-duplicates.ps1
-```
-
-#### 8. Package Conflict in Utils Directory
-
-If you encounter errors like "found packages utils and main in default/utils":
-
-```bash
-# Windows PowerShell
-$sortingContent = Get-Content -Path "default\utils\sorting.go"
-$sortingContent = $sortingContent -replace "package main", "package utils"
-$sortingContent | Set-Content -Path "default\utils\sorting.go"
+# Windows (PowerShell)
+.\fixer\fix-all-imports.ps1
 
 # Linux/macOS
-sed -i 's/package main/package utils/g' default/utils/sorting.go
+chmod +x fixer/fix-all-imports.sh
+./fixer/fix-all-imports.sh
 ```
 
-This is already included in the fix-set-duplicates scripts.
+### Go Version Issues
 
-#### 9. Multierr and bytes.Compare Errors on Linux
-
-If you encounter errors like:
-```
-# go.uber.org/multierr: undefined: atomic.Bool
-note: module requires Go 1.19
-# github.com/ava-labs/avalanchego/utils: bytes.Compare undefined (type [][]byte has no field or method Compare)
-```
-
-Use our all-in-one fix script for Linux:
 ```bash
-chmod +x fixer/fix-all-linux.sh
-./fixer/fix-all-linux.sh
+# Windows (PowerShell)
+.\fixer\fix-go-version.ps1
+
+# Linux/macOS
+chmod +x fixer/fix-go-version.sh
+./fixer/fix-go-version.sh
 ```
 
-This script will:
-1. Fix Go version and dependencies in go.mod
-2. Fix package declarations
-3. Fix bytes.Compare issues in sorting.go
-4. Fix set package duplicates
-5. Run go mod tidy
+</details>
 
-#### 10. Missing go.sum Entries
-
-If you encounter errors like:
-```
-go: go.uber.org/atomic@v1.7.0: missing go.sum entry; to add it:
-        go mod download go.uber.org/atomic
-```
-
-Fix it with:
-```bash
-# Single fix script
-chmod +x fixer/fix-go-sum.sh
-./fixer/fix-go-sum.sh
-
-# Or use our all-in-one fix script which includes this fix
-chmod +x fixer/fix-all-linux.sh
-./fixer/fix-all-linux.sh
-```
-
-Alternatively, run these commands manually:
-```bash
-go mod download go.uber.org/atomic
-go mod download
-go mod tidy
-```
-
-## ✨ Features
-
-<table>
-  <tr>
-    <td align="center"><b>⚡ Parallel Processing</b></td>
-    <td>Execute multiple transaction vertices concurrently using multi-threaded architecture, providing up to 10x faster transaction validation</td>
-  </tr>
-  <tr>
-    <td align="center"><b>🌐 Distributed Architecture</b></td>
-    <td>Distribute processing load across multiple worker nodes, each capable of processing thousands of transactions per second</td>
-  </tr>
-  <tr>
-    <td align="center"><b>🔄 Dynamic Workload Distribution</b></td>
-    <td>Intelligently assign tasks based on worker capacity and current load for optimal resource utilization</td>
-  </tr>
-  <tr>
-    <td align="center"><b>♾️ Auto-Scaling</b></td>
-    <td>Automatically adapt to network demand by scaling worker nodes up or down with Kubernetes HPA support</td>
-  </tr>
-  <tr>
-    <td align="center"><b>🛡️ Fault Tolerance</b></td>
-    <td>Maintain continuous operation through worker redundancy and automatic task reassignment when nodes fail</td>
-  </tr>
-  <tr>
-    <td align="center"><b>📊 Performance Monitoring</b></td>
-    <td>Track system health and performance with Prometheus metrics and customized Grafana dashboards</td>
-  </tr>
-  <tr>
-    <td align="center"><b>🛠️ Container Orchestration</b></td>
-    <td>Deploy and manage with Docker Compose for development and Kubernetes for production environments</td>
-  </tr>
-  <tr>
-    <td align="center"><b>📈 Horizontal Scalability</b></td>
-    <td>Linearly increase processing capacity by adding more worker nodes to handle higher transaction volumes</td>
-  </tr>
-</table>
-
-## 📋 Quick Reference Commands
+## 📋 Quick Reference
 
 Here's a simplified cheat sheet for building and running the project with Go 1.18:
 
@@ -774,51 +526,24 @@ go build -o worker ./cmd/worker
 .\avalanche-parallel.exe --network-id=local --staking-enabled=false --http-port=9650
 .\worker.exe --api-port=9652 --threads=4
 
-# Linux/macOS:
-./avalanche-parallel --network-id=local --staking-enabled=false --http-port=9650
-./worker --api-port=9652 --threads=4
-
 # Option 2: Run with Docker Compose
 docker-compose -f config/docker-compose.yml up -d
 ```
 
-### Step 4: Run Tests (Optional)
+## 📄 License
 
-```bash
-# Run test with script
-# Windows:
-.\scripts\runtest.ps1
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-# Linux/macOS:
-chmod +x scripts/restart.sh
-./scripts/restart.sh
+## 👥 Contributing
 
-# Or run individual tests
-go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain
-```
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-### Troubleshooting
+## 📱 Contact
 
-If you encounter any issues, these commands may help:
+For questions or support, please open an issue on our GitHub repository.
 
-```bash
-# Fix sorting errors
-# Windows:
-.\fixer\fix-sorting.ps1
-# Linux/macOS:
-cp fixer/sorting_fixed.go default/utils/sorting.go
+---
 
-# Fix module path issues
-# Windows:
-.\fixer\fix-module-path.ps1
-# Linux/macOS:
-chmod +x fixer/fix-module-path.sh
-./fixer/fix-module-path.sh
-
-# Fix import path issues
-# Windows:
-.\fixer\fix-all-imports.ps1
-# Linux/macOS:
-chmod +x fixer/fix-all-imports.sh
-./fixer/fix-all-imports.sh
-```
+<div align="center">
+Made with ❤️ by the Avalanche Parallel DAG Team
+</div>
