@@ -514,111 +514,192 @@ The benchmarks support multiple transaction size profiles:
 
 #### Benchmark Visualizations
 
-##### Processing Time Comparison
+##### Traditional vs Parallel Consensus Test Flow
 
 ```mermaid
-graph LR
-    title[<u>Processing Time Comparison</u>]
-    style title fill:none,stroke:none
+flowchart TD
+    Start([Start Benchmark]) --> InputParams[/Input Parameters/]
+    InputParams --> |Configure| TestPrep[Test Preparation]
     
-    subgraph Traditional
-    T1[1 Thread: 3.45s]
-    end
+    TestPrep --> TraditionalTest[Traditional Consensus Test]
+    TestPrep --> ParallelTest[Parallel Consensus Test]
     
-    subgraph Parallel
-    P2[2 Threads: 1.91s]
-    P4[4 Threads: 1.15s]
-    P8[8 Threads: 0.78s]
+    TraditionalTest --> |Single Thread| TS_Small[Small TX Test]
+    TraditionalTest --> |Single Thread| TM_Medium[Medium TX Test]
+    TraditionalTest --> |Single Thread| TL_Large[Large TX Test]
+    TraditionalTest --> |Single Thread| TMix_Mixed[Mixed TX Test]
+    
+    ParallelTest --> |Multi-thread| PS_Small[Small TX Test]
+    ParallelTest --> |Multi-thread| PM_Medium[Medium TX Test]
+    ParallelTest --> |Multi-thread| PL_Large[Large TX Test]
+    ParallelTest --> |Multi-thread| PMix_Mixed[Mixed TX Test]
+    
+    TS_Small & TM_Medium & TL_Large & TMix_Mixed --> TResults[Traditional Results]
+    PS_Small & PM_Medium & PL_Large & PMix_Mixed --> PResults[Parallel Results]
+    
+    TResults & PResults --> Comparison[Compare Results]
+    Comparison --> Report[Generate Report]
+    Report --> End([End Benchmark])
+    
+    classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
+    classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
+    classDef process fill:#FFFFCC,stroke:#333,stroke-width:1px
+    classDef start fill:#CCFFCC,stroke:#333,stroke-width:1px
+    classDef end fill:#FFCCCC,stroke:#333,stroke-width:1px
+    
+    class TraditionalTest,TS_Small,TM_Medium,TL_Large,TMix_Mixed,TResults traditional
+    class ParallelTest,PS_Small,PM_Medium,PL_Large,PMix_Mixed,PResults parallel
+    class TestPrep,Comparison,Report process
+    class Start,InputParams start
+    class End end
+```
+
+##### Small Transaction Test Case
+
+```mermaid
+flowchart LR
+    subgraph SmallTX[Small Transaction Test Case]
+        direction TB
+        STX_Gen[Generate 5000 Small Transactions] --> STX_T[Traditional Processing]
+        STX_Gen --> STX_P[Parallel Processing]
+        
+        STX_T --> STX_TR[Time: 2.85s]
+        STX_P --> STX_PR[Time: 0.62s]
+        
+        STX_TR & STX_PR --> STX_Comp[Speedup: 4.6x]
     end
     
     classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
     classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
     
-    class Traditional traditional
-    class Parallel,P2,P4,P8 parallel
+    class STX_T,STX_TR traditional
+    class STX_P,STX_PR parallel
 ```
 
-##### Transactions Per Second
+##### Medium Transaction Test Case
 
 ```mermaid
-graph LR
-    title[<u>Transactions Per Second</u>]
-    style title fill:none,stroke:none
-    
-    T1[Traditional<br>1 Thread<br>1,449 tx/s]
-    P2[Parallel<br>2 Threads<br>2,618 tx/s]
-    P4[Parallel<br>4 Threads<br>4,348 tx/s]
-    P8[Parallel<br>8 Threads<br>6,410 tx/s]
-    
-    classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
-    classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
-    
-    class T1 traditional
-    class P2,P4,P8 parallel
-```
-
-##### Speedup Factor Comparison
-
-```mermaid
-graph LR
-    title[<u>Speedup Factor</u>]
-    style title fill:none,stroke:none
-    
-    T1[Traditional<br>1.00x]
-    P2[2 Threads<br>1.81x]
-    P4[4 Threads<br>3.00x]
-    P8[8 Threads<br>4.42x]
-    
-    classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
-    classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
-    
-    class T1 traditional
-    class P2,P4,P8 parallel
-```
-
-##### Test Case Performance
-
-```mermaid
-graph LR
-    title[<u>Test Case Performance (Processing Time in Seconds)</u>]
-    style title fill:none,stroke:none
-    
-    subgraph "Small Transactions"
-    TS_T["Traditional: 2.85s"]
-    TS_P["Parallel (8T): 0.62s"]
-    end
-    
-    subgraph "Medium Transactions"
-    TM_T["Traditional: 3.45s"]
-    TM_P["Parallel (8T): 0.78s"]
-    end
-    
-    subgraph "Large Transactions"
-    TL_T["Traditional: 4.21s"]
-    TL_P["Parallel (8T): 1.13s"]
-    end
-    
-    subgraph "Mixed Workload"
-    TMX_T["Traditional: 3.78s"]
-    TMX_P["Parallel (8T): 0.92s"]
+flowchart LR
+    subgraph MediumTX[Medium Transaction Test Case]
+        direction TB
+        MTX_Gen[Generate 5000 Medium Transactions] --> MTX_T[Traditional Processing]
+        MTX_Gen --> MTX_P[Parallel Processing]
+        
+        MTX_T --> MTX_TR[Time: 3.45s]
+        MTX_P --> MTX_PR[Time: 0.78s]
+        
+        MTX_TR & MTX_PR --> MTX_Comp[Speedup: 4.4x]
     end
     
     classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
     classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
     
-    class TS_T,TM_T,TL_T,TMX_T traditional
-    class TS_P,TM_P,TL_P,TMX_P parallel
+    class MTX_T,MTX_TR traditional
+    class MTX_P,MTX_PR parallel
 ```
 
-##### Full Benchmark Comparison
+##### Large Transaction Test Case
 
 ```mermaid
-xychart-beta
-    title "Traditional vs Parallel Performance"
-    x-axis [1, 2, 4, 8]
-    y-axis "Transactions/second" 1000 -> 7000
-    line [1449, 2618, 4348, 6410]
-    data-labels [1T, 2T, 4T, 8T]
+flowchart LR
+    subgraph LargeTX[Large Transaction Test Case]
+        direction TB
+        LTX_Gen[Generate 5000 Large Transactions] --> LTX_T[Traditional Processing]
+        LTX_Gen --> LTX_P[Parallel Processing]
+        
+        LTX_T --> LTX_TR[Time: 4.21s]
+        LTX_P --> LTX_PR[Time: 1.13s]
+        
+        LTX_TR & LTX_PR --> LTX_Comp[Speedup: 3.7x]
+    end
+    
+    classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
+    classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
+    
+    class LTX_T,LTX_TR traditional
+    class LTX_P,LTX_PR parallel
+```
+
+##### Mixed Workload Test Case
+
+```mermaid
+flowchart LR
+    subgraph MixedTX[Mixed Transaction Test Case]
+        direction TB
+        MixTX_Gen[Generate Mixed Transaction Sizes] --> MixTX_T[Traditional Processing]
+        MixTX_Gen --> MixTX_P[Parallel Processing]
+        
+        MixTX_T --> MixTX_TR[Time: 3.78s]
+        MixTX_P --> MixTX_PR[Time: 0.92s]
+        
+        MixTX_TR & MixTX_PR --> MixTX_Comp[Speedup: 4.1x]
+    end
+    
+    classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
+    classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
+    
+    class MixTX_T,MixTX_TR traditional
+    class MixTX_P,MixTX_PR parallel
+```
+
+##### Thread Scaling Performance
+
+```mermaid
+flowchart TB
+    title[Thread Scaling Performance]
+    style title fill:none,stroke:none
+    
+    subgraph Threads[Thread Configuration]
+        T1[1 Thread<br>1,449 tx/s]
+        T2[2 Threads<br>2,618 tx/s]
+        T4[4 Threads<br>4,348 tx/s]
+        T8[8 Threads<br>6,410 tx/s]
+    end
+    
+    subgraph Scale[Scaling Factor]
+        S1[1.00x]
+        S2[1.81x]
+        S4[3.00x]
+        S8[4.42x]
+    end
+    
+    T1 --> S1
+    T2 --> S2
+    T4 --> S4
+    T8 --> S8
+    
+    classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
+    classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
+    
+    class T1,S1 traditional
+    class T2,T4,T8,S2,S4,S8 parallel
+```
+
+##### Benchmark Summary
+
+```mermaid
+graph TD
+    subgraph "Processing Time (Lower is Better)"
+        direction LR
+        PT_T1[Traditional: 3.45s]
+        PT_P2[2 Threads: 1.91s]
+        PT_P4[4 Threads: 1.15s]
+        PT_P8[8 Threads: 0.78s]
+    end
+    
+    subgraph "Transactions Per Second (Higher is Better)"
+        direction LR
+        TPS_T1[Traditional: 1,449 tx/s]
+        TPS_P2[2 Threads: 2,618 tx/s]
+        TPS_P4[4 Threads: 4,348 tx/s]
+        TPS_P8[8 Threads: 6,410 tx/s]
+    end
+    
+    classDef traditional fill:#FF9999,stroke:#333,stroke-width:1px
+    classDef parallel fill:#99CCFF,stroke:#333,stroke-width:1px
+    
+    class PT_T1,TPS_T1 traditional
+    class PT_P2,PT_P4,PT_P8,TPS_P2,TPS_P4,TPS_P8 parallel
 ```
 
 #### How It Works
