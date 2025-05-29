@@ -50,87 +50,133 @@ avalanche-parallel/
 
 ```mermaid
 flowchart TD
-    %% Main Components
-    MN[Avalanche Main Node]:::mainNode
-    QB[Queue Balancer]:::controller
-    API[API Gateway]:::controller
-    PROM[Prometheus]:::monitoring
-    GRAF[Grafana]:::monitoring
-    
-    %% Workers
-    subgraph Workers
-        WP1[Worker Pod 1]:::workerNode
-        WP2[Worker Pod 2]:::workerNode
-        WP3[Worker Pod 3]:::workerNode
-        WPN[Worker Pod N]:::workerNode
-        
-        subgraph "Worker Pod Structure"
-            direction TB
-            WM[Worker Manager]:::component
-            T1[Thread 1]:::thread
-            T2[Thread 2]:::thread
-            T3[Thread 3]:::thread
-            TN[Thread N]:::thread
+    %% System Layers Division
+    subgraph "High-Level Architecture"
+        subgraph "System Components"
+            API[API Gateway]:::controller
+            MN[Avalanche Main Node]:::mainNode
+            QB[Queue Balancer]:::controller
             
-            WM --> T1 & T2 & T3 & TN
+            KO[Kubernetes Orchestration]:::k8s
+            MON[Monitoring System]:::monitoring
+            
+            MN <--> API
+            API <--> QB
+            KO --> MN
+            KO --> WL
+            MON --> MN
+            MON --> WL
+        end
+        
+        subgraph "WL: Worker Layer"
+            W1[Worker Pod 1]:::workerNode
+            W2[Worker Pod 2]:::workerNode
+            W3[Worker Pod N]:::workerNode
+            
+            QB <--> W1 & W2 & W3
         end
     end
     
-    %% Storage Components
-    subgraph Storage
-        DB[(Transaction DB)]:::storage
-        FS[(File System)]:::storage
-        MQ[(Message Queue)]:::storage
+    %% Mid-Level Architecture
+    subgraph "Mid-Level Implementation"
+        subgraph "Main Node Components"
+            subgraph "Consensus Engine" 
+                DAG[DAG Manager]:::component
+                VP[Vertex Processor]:::component
+                DM[Dependency Manager]:::component
+                TS[Transaction Scheduler]:::component
+                
+                DAG <--> VP
+                VP <--> DM
+                DM <--> TS
+            end
+            
+            subgraph "Storage Systems"
+                DB[(Transaction DB)]:::storage
+                FS[(File System)]:::storage
+                MQ[(Message Queue)]:::storage
+            end
+            
+            CE[Consensus Engine] --> Storage
+            MN --- CE
+            MN --- Storage
+        end
+        
+        subgraph "Monitoring Stack"
+            PROM[Prometheus]:::monitoring
+            GRAF[Grafana]:::monitoring
+            ALERT[Alertmanager]:::monitoring
+            
+            PROM --> GRAF
+            PROM --> ALERT
+        end
+        
+        subgraph "Kubernetes Resources"
+            HPA[Horizontal Pod Autoscaler]:::k8s
+            SC[Service Controller]:::k8s
+            PVC[Persistent Volume Claims]:::k8s
+            SVC[Services]:::k8s
+        end
     end
     
-    %% Consensus Components
-    subgraph "Consensus Engine"
-        DAG[DAG Manager]:::component
-        VP[Vertex Processor]:::component
-        DM[Dependency Manager]:::component
-        TS[Transaction Scheduler]:::component
+    %% Low-Level Implementation
+    subgraph "Low-Level Implementation"
+        subgraph "Worker Internals"
+            subgraph "Thread Management"
+                WM[Worker Manager]:::component
+                T1[Thread 1]:::thread
+                T2[Thread 2]:::thread
+                T3[Thread 3]:::thread
+                TN[Thread N]:::thread
+                
+                WM --> T1 & T2 & T3 & TN
+            end
+            
+            subgraph "Memory Structures"
+                VTXQ[Vertex Queue]:::data
+                MEMPL[Memory Pool]:::data
+                LCK[Lock Manager]:::data
+                
+                T1 & T2 & T3 & TN --> VTXQ
+                T1 & T2 & T3 & TN --> MEMPL
+                T1 & T2 & T3 & TN --> LCK
+            end
+            
+            subgraph "Parallel Processing"
+                VTX[Vertex Processing]:::process
+                TXVLD[Transaction Validation]:::process
+                SIGN[Signature Verification]:::process
+                DEPS[Dependency Resolution]:::process
+                
+                T1 & T2 & T3 & TN --> VTX & TXVLD & SIGN & DEPS
+            end
+        end
+        
+        subgraph "Data Structures"
+            subgraph "DAG Components"
+                VTXS[Vertices]:::data
+                EDGES[Edges]:::data
+                FRNT[Frontier]:::data
+                
+                VTXS <--> EDGES
+                EDGES --> FRNT
+            end
+            
+            subgraph "Transaction Format"
+                HEADER[TX Header]:::data
+                PAYLOAD[TX Payload]:::data
+                SIG[Signatures]:::data
+                
+                HEADER --> PAYLOAD
+                HEADER --> SIG
+            end
+        end
     end
     
-    %% Kubernetes Management
-    subgraph "Kubernetes Orchestration"
-        HPA[Horizontal Pod Autoscaler]:::k8s
-        SC[Service Controller]:::k8s
-        PVC[Persistent Volume Claims]:::k8s
-        SVC[Services]:::k8s
-    end
-    
-    %% Data Flow Connections
-    MN <--> API
-    API <--> QB
-    QB <--> |"1. Distribute Tasks"| Workers
-    Workers -->|"2. Process Results"| QB
-    MN <--> DAG
-    DAG <--> VP
-    VP <--> DM
-    DM <--> TS
-    
-    %% Storage Connections
-    MN <--> DB
-    MN <--> FS
-    MN <--> MQ
-    Workers <--> MQ
-    
-    %% Monitoring
-    MN --> PROM
-    Workers --> PROM
-    PROM --> GRAF
-    
-    %% Kubernetes Management
-    HPA --> Workers
-    SC --> Workers
-    PVC --> Storage
-    SVC --> API
-    
-    %% Data Flow Labels
-    linkStyle 0,1,2,3,4,5,6,7 stroke:#FF5000,stroke-width:2px
-    linkStyle 8,9,10,11,12 stroke:#107C10,stroke-width:2px
-    linkStyle 13,14,15 stroke:#9B59B6,stroke-width:2px
-    linkStyle 16,17,18,19 stroke:#3498DB,stroke-width:2px
+    %% Connections between layers
+    W1 & W2 & W3 -.-> "Worker Internals"
+    DAG -.-> "DAG Components"
+    VP -.-> VTX
     
     %% Styles
     classDef mainNode fill:#FF5000,stroke:#333,stroke-width:3px,color:white,font-weight:bold
@@ -141,49 +187,51 @@ flowchart TD
     classDef thread fill:#3498DB,stroke:#333,stroke-width:1px,color:white
     classDef monitoring fill:#E74C3C,stroke:#333,stroke-width:2px,color:white
     classDef k8s fill:#34495E,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef data fill:#27AE60,stroke:#333,stroke-width:1px,color:white
+    classDef process fill:#2980B9,stroke:#333,stroke-width:1px,color:white
 ```
 
-*A comprehensive, high-performance implementation of Directed Acyclic Graph (DAG) processing for the Avalanche consensus protocol with parallel and distributed execution*
+*A multi-layered architecture showing the Avalanche Parallel DAG system from low-level implementation details to high-level system design*
 
 </div>
 
-## 📋 Overview
+## 📋 System Architecture Overview
 
-This project implements a high-performance version of the Directed Acyclic Graph (DAG) for the Avalanche consensus protocol. It achieves significant improvements in transaction throughput and confirmation latency through:
+The Avalanche Parallel DAG system is designed as a layered architecture with clear separation of concerns:
 
-- **Parallel Processing**: Executes multiple transaction vertices simultaneously using multi-threading
-- **Distributed Architecture**: Scales horizontally with worker nodes across multiple containers
-- **Optimized DAG Management**: Implements efficient frontier tracking and parent-child dependency resolution
-- **Containerized Deployment**: Provides Docker and Kubernetes configurations for easy scaling
+### High-Level Architecture
 
-## 🔄 System Architecture
+The top-level view focuses on the main system components and their interactions:
 
-The Avalanche Parallel DAG architecture consists of these key components:
+- **API Gateway**: Entry point for transactions and queries
+- **Main Node**: Central coordinator for the entire system
+- **Queue Balancer**: Distributes work across worker nodes
+- **Worker Layer**: Distributed processing units that handle parallel execution
+- **Kubernetes Orchestration**: Manages deployment and scaling
+- **Monitoring System**: Tracks system health and performance
 
-### Core Components
+### Mid-Level Implementation
 
-- **Main Node**: Central coordinator that manages the DAG, assigns work, and applies consensus rules
-- **API Gateway**: Exposes endpoints for transactions and queries while handling load balancing
-- **Queue Balancer**: Distributes processing tasks evenly across available worker nodes
-- **Consensus Engine**: Implements the Avalanche consensus protocol with parallel optimizations
+The middle layer details the internal components that power the system:
 
-### Worker Infrastructure
+- **Consensus Engine**: Implements the Avalanche protocol with components for DAG management, vertex processing, dependency management, and transaction scheduling
+- **Storage Systems**: Handles data persistence with transaction database, file system, and message queue
+- **Monitoring Stack**: Provides observability through Prometheus, Grafana, and alerts
+- **Kubernetes Resources**: Manages infrastructure with autoscalers, service controllers, and persistent storage
 
-- **Worker Pods**: Distributed processing units that execute transaction validations in parallel
-- **Worker Manager**: Controls thread allocation and monitors performance within each worker
-- **Processing Threads**: Individual execution units that process assigned DAG vertices
+### Low-Level Implementation
 
-### Storage Layer
+The foundational layer focuses on the detailed implementation:
 
-- **Transaction Database**: Persistent storage for confirmed transactions and blockchain state
-- **Message Queue**: High-performance queue for inter-component communication
-- **File System**: Stores blockchain data, configuration, and system state
+- **Worker Internals**: 
+  - Thread Management: Controls parallel execution with multiple worker threads
+  - Memory Structures: Manages data with vertex queues, memory pools, and concurrency controls
+  - Parallel Processing: Executes vertex processing, transaction validation, signature verification, and dependency resolution
+- **Data Structures**:
+  - DAG Components: Represents the directed acyclic graph with vertices, edges, and frontier management
+  - Transaction Format: Defines the structure of transactions with headers, payloads, and signatures
 
-### Monitoring & Management
-
-- **Prometheus**: Collects real-time metrics from all system components
-- **Grafana**: Visualizes system performance and health metrics
-- **Kubernetes Orchestration**: Manages deployment, scaling, and fault tolerance
+This layered approach allows the system to scale efficiently while maintaining the core performance benefits of parallel execution across distributed nodes.
 
 ## 🔄 How It Works
 
