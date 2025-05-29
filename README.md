@@ -108,9 +108,10 @@ The top-level view focuses on the main system components and their interactions:
 flowchart TD
     %% Main Node and Components
     MN[Avalanche Main Node]:::mainNode
+    CE[Consensus Engine]:::component
     
-    %% Consensus Engine
-    subgraph "Consensus Engine" 
+    %% Consensus Engine Components
+    subgraph "Consensus Engine Components" 
         DAG[DAG Manager]:::component
         VP[Vertex Processor]:::component
         DM[Dependency Manager]:::component
@@ -122,35 +123,30 @@ flowchart TD
     end
     
     %% Storage Systems
-    subgraph "Storage Systems"
-        DB[(Transaction DB)]:::storage
-        FS[(File System)]:::storage
-        MQ[(Message Queue)]:::storage
-    end
+    DB[(Transaction DB)]:::storage
+    FS[(File System)]:::storage
+    MQ[(Message Queue)]:::storage
     
     %% Monitoring Stack
-    subgraph "Monitoring Stack"
-        PROM[Prometheus]:::monitoring
-        GRAF[Grafana]:::monitoring
-        ALERT[Alertmanager]:::monitoring
-        
-        PROM --> GRAF
-        PROM --> ALERT
-    end
+    PROM[Prometheus]:::monitoring
+    GRAF[Grafana]:::monitoring
+    ALERT[Alertmanager]:::monitoring
     
     %% Kubernetes Resources
-    subgraph "Kubernetes Resources"
-        HPA[Horizontal Pod Autoscaler]:::k8s
-        SC[Service Controller]:::k8s
-        PVC[Persistent Volume Claims]:::k8s
-        SVC[Services]:::k8s
-    end
+    HPA[Horizontal Pod Autoscaler]:::k8s
+    SC[Service Controller]:::k8s
+    PVC[Persistent Volume Claims]:::k8s
+    SVC[Services]:::k8s
     
     %% Connections
-    MN --- "Consensus Engine"
-    "Consensus Engine" --> DB
-    "Consensus Engine" --> FS
-    "Consensus Engine" --> MQ
+    MN --- CE
+    CE --- DAG
+    CE --> DB
+    CE --> FS
+    CE --> MQ
+    
+    PROM --> GRAF
+    PROM --> ALERT
     
     %% Styles
     classDef mainNode fill:#FF5000,stroke:#333,stroke-width:3px,color:white,font-weight:bold
