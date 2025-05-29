@@ -441,13 +441,6 @@ The benchmark tests measure:
 
 ### Transaction Load Testing
 
-For comprehensive load testing, use the transaction load test script:
-
-```bash
-# Build and run the load test
-go run ./scripts/transaction_load_test.go
-```
-
 The load test simulates various scenarios:
 - Normal transactions
 - Double-spend attempts
@@ -456,18 +449,6 @@ The load test simulates various scenarios:
 - Transaction bursts
 
 This script generates realistic network load to test system stability and performance under various conditions.
-
-### Simple Blockchain Test
-
-For a quick test of the blockchain functionality:
-
-```bash
-# Windows (PowerShell)
-.\scripts\runtest.ps1
-
-# Linux/macOS
-go run simple_test.go
-```
 
 ## 📋 Docker Deployment
 
