@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2024, Ava Labs, Inc. All rights reserved.
+// Copyright (C) 2019-2022, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package utils
@@ -9,6 +9,88 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/hashing"
 )
+
+// SortBytes sorts a slice of byte slices
+func SortBytes(byteSlices [][]byte) {
+	sort.Slice(byteSlices, func(i, j int) bool {
+		return bytes.Compare(byteSlices[i], byteSlices[j]) < 0
+	})
+}
+
+// IsSorted returns true if the elements in the slice are sorted
+func IsSorted[T any](s []T, less func(i, j T) bool) bool {
+	for i := 0; i < len(s)-1; i++ {
+		if less(s[i+1], s[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// IsSortedBytes returns true if the elements in the slice are sorted
+func IsSortedBytes[T ~[]byte](s []T) bool {
+	for i := 0; i < len(s)-1; i++ {
+		if bytes.Compare(s[i], s[i+1]) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// SortByHash sorts the elements of [s] based on their hashes.
+func SortByHash[T ~[]byte](s []T) {
+	sort.Slice(s, func(i, j int) bool {
+		iHash := hashing.ComputeHash256(s[i])
+		jHash := hashing.ComputeHash256(s[j])
+		return bytes.Compare(iHash, jHash) < 0
+	})
+}
+
+// IsSortedByHash returns true iff the elements in [s] are sorted by their hash
+func IsSortedByHash[T ~[]byte](s []T) bool {
+	if len(s) <= 1 {
+		return true
+	}
+	rightHash := hashing.ComputeHash256(s[0])
+	for i := 1; i < len(s); i++ {
+		leftHash := rightHash
+		rightHash = hashing.ComputeHash256(s[i])
+		if bytes.Compare(leftHash, rightHash) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// Sort2DBytes sorts a 2D byte slice by the first index's lexicographical order
+func Sort2DBytes(byteSlices [][]byte) {
+	sort.Slice(byteSlices, func(i, j int) bool {
+		return bytes.Compare(byteSlices[i], byteSlices[j]) < 0
+	})
+}
+
+// Compare returns a negative number, 0, or positive number if [a] is less than,
+// equal to, or greater than [b].
+// Assumes that [a] and [b] have the same length.
+func Compare(a, b []byte) int {
+	return bytes.Compare(a, b)
+}
+
+// CompareSlice returns a negative number, 0, or positive number if [a] is less than,
+// equal to, or greater than [b].
+func CompareSlice(a, b [][]byte) int {
+	minLen := len(a)
+	if len(b) < minLen {
+		minLen = len(b)
+	}
+	for i := 0; i < minLen; i++ {
+		comparison := bytes.Compare(a[i], b[i])
+		if comparison != 0 {
+			return comparison
+		}
+	}
+	return len(a) - len(b)
+}
 
 // TODO can we handle sorting where the Compare function relies on a codec?
 
@@ -21,39 +103,6 @@ func Sort[T Sortable[T]](s []T) {
 	sort.Slice(s, func(i, j int) bool {
 		return s[i].Compare(s[j]) < 0
 	})
-}
-
-// SortBytes sorts a slice of byte slices
-func SortBytes(byteSlices [][]byte) {
-	sort.Slice(byteSlices, func(i, j int) bool {
-		return bytes.Compare(byteSlices[i], byteSlices[j]) < 0
-	})
-}
-
-// Sort2DBytes sorts a 2D byte slice by the first index's lexicographical order
-func Sort2DBytes(byteSlices [][]byte) {
-	sort.Slice(byteSlices, func(i, j int) bool {
-		return bytes.Compare(byteSlices[i], byteSlices[j]) < 0
-	})
-}
-
-// Sorts the elements of [s] based on their hashes.
-func SortByHash[T ~[]byte](s []T) {
-	sort.Slice(s, func(i, j int) bool {
-		iHash := hashing.ComputeHash256(s[i])
-		jHash := hashing.ComputeHash256(s[j])
-		return bytes.Compare(iHash, jHash) < 0
-	})
-}
-
-// Returns true iff the elements in [s] are sorted.
-func IsSortedBytes[T ~[]byte](s []T) bool {
-	for i := 0; i < len(s)-1; i++ {
-		if bytes.Compare(s[i], s[i+1]) > 0 {
-			return false
-		}
-	}
-	return true
 }
 
 // Returns true iff the elements in [s] are unique and sorted.
@@ -183,27 +232,3 @@ func IsSortedAndUniqueByHash[T ~[]byte](s []T) bool {
 	}
 	return true
 }
-
-// Compare returns a negative number, 0, or positive number if [a] is less than,
-// equal to, or greater than [b].
-// Assumes that [a] and [b] have the same length.
-func Compare(a, b []byte) int {
-	return bytes.Compare(a, b)
-}
-
-// CompareSlice returns a negative number, 0, or positive number if [a] is less than,
-// equal to, or greater than [b].
-func CompareSlice(a, b [][]byte) int {
-	minLen := len(a)
-	if len(b) < minLen {
-		minLen = len(b)
-	}
-	for i := 0; i < minLen; i++ {
-		comparison := bytes.Compare(a[i], b[i])
-		if comparison != 0 {
-			return comparison
-		}
-	}
-	return len(a) - len(b)
-} 
-

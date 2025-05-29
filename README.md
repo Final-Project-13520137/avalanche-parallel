@@ -1,3 +1,49 @@
+# Avalanche Parallel DAG
+
+## Project Structure
+
+The project has been reorganized into a more modular structure:
+
+```
+avalanche-parallel/
+├── bin/                # Executable binaries
+├── cmd/                # Command line applications
+│   ├── avalanche/      # Main Avalanche node implementation
+│   ├── benchmark/      # Benchmarking tools
+│   ├── blockchain/     # Blockchain CLI tools
+│   └── worker/         # Worker node implementation
+├── config/             # Configuration files
+│   ├── docker-compose.yml
+│   └── temp-docker-compose.yml
+├── default/            # Avalanche core fork (from avalanchego)
+├── deployments/        # Deployment configurations
+│   ├── docker/         # Docker deployment files
+│   ├── grafana/        # Grafana dashboards and configurations
+│   ├── kubernetes/     # Kubernetes deployment files
+│   └── prometheus/     # Prometheus configuration
+├── docs/               # Documentation
+├── fixer/              # Fix scripts for compatibility issues
+│   ├── fix-go-version.ps1  # Fix Go version in go.mod
+│   ├── fix-go-compatibility.ps1  # Fix Go compatibility issues
+│   └── ...
+├── gomod-backups/      # Backup of go.mod files
+├── logs/               # Log files
+├── pkg/                # Core packages
+│   ├── blockchain/     # Blockchain implementation
+│   ├── consensus/      # Consensus algorithms
+│   ├── scripts/        # Utility scripts
+│   ├── test/           # Test utilities
+│   ├── utils/          # Utility packages
+│   │   ├── compatibility/  # Go compatibility utilities
+│   │   ├── logging/        # Logging utilities
+│   │   ├── math/           # Math utilities
+│   │   ├── sampler/        # Sampling utilities
+│   │   └── set/            # Set data structure
+│   └── worker/         # Worker node implementation
+├── scripts/            # Helper scripts
+└── utils/              # Top-level utilities
+```
+
 # Avalanche Parallel DAG Implementation
 
 <div align="center">
@@ -35,6 +81,26 @@ This project implements an optimized version of the Directed Acyclic Graph (DAG)
 - Distributed processing across multiple Kubernetes worker pods
 - Efficient frontier management for optimal parallel execution
 
+## ⚠️ Important: Go 1.18 Compatibility
+
+This project **requires Go 1.18 specifically**. It is not compatible with newer Go versions due to dependency constraints.
+
+Common issues and their solutions:
+
+1. **Package Conflict in `utils` Directory**
+   - Error: `found packages utils (atomic.go) and main (sorting.go) in default/utils`
+   - Solution: Run our fix scripts to correct the package declaration
+
+2. **`bytes.Compare` Syntax Issues**
+   - Error: `bytes.Compare undefined (type [][]byte has no field or method Compare)`
+   - Solution: Our fix scripts update sorting.go with correct syntax
+
+3. **multierr Dependency Requiring Go 1.19+**
+   - Error: `go.uber.org/multierr: undefined: atomic.Bool` and `note: module requires Go 1.19`
+   - Solution: Our fix scripts downgrade dependencies to Go 1.18 compatible versions
+
+For detailed troubleshooting, see [fixer/FIX-GO118-GUIDE.md](fixer/FIX-GO118-GUIDE.md).
+
 ## 🚀 Installation and Setup Guide
 
 This section provides comprehensive instructions for installing, building, and running the Avalanche Parallel DAG system.
@@ -58,13 +124,13 @@ cd avalanche-parallel-dag
 
 # 2. Fix Go compatibility (essential for Go 1.18)
 # For Windows:
-.\fix-go-version.ps1
-.\fix-go-compatibility.ps1
+.\fixer\fix-go-version.ps1
+.\fixer\fix-go-compatibility.ps1
 
 # For Linux/macOS:
-chmod +x fix-go-version.sh fix-go-compatibility.sh
-./fix-go-version.sh
-./fix-go-compatibility.sh
+chmod +x fixer/fix-go-version.sh fixer/fix-go-compatibility.sh
+./fixer/fix-go-version.sh
+./fixer/fix-go-compatibility.sh
 
 # 3. Build the binaries
 # For Windows:
@@ -117,11 +183,11 @@ This project requires Go 1.18 specifically. Follow these steps to ensure compati
 
 ```bash
 # Windows (PowerShell)
-.\fix-go-version.ps1
+.\fixer\fix-go-version.ps1
 
 # Linux/macOS
-chmod +x fix-go-version.sh
-./fix-go-version.sh
+chmod +x fixer/fix-go-version.sh
+./fixer/fix-go-version.sh
 ```
 
 This will:
@@ -133,11 +199,11 @@ This will:
 
 ```bash
 # Windows (PowerShell)
-.\fix-go-compatibility.ps1
+.\fixer\fix-go-compatibility.ps1
 
 # Linux/macOS
-chmod +x fix-go-compatibility.sh
-./fix-go-compatibility.sh
+chmod +x fixer/fix-go-compatibility.sh
+./fixer/fix-go-compatibility.sh
 ```
 
 This will:
@@ -198,12 +264,12 @@ Before using Docker Compose, ensure you've applied the compatibility fixes:
 ```bash
 # Fix Go compatibility first
 # Windows:
-.\fix-go-version.ps1
-.\fix-go-compatibility.ps1
+.\fixer\fix-go-version.ps1
+.\fixer\fix-go-compatibility.ps1
 # Linux/macOS:
-chmod +x fix-go-version.sh fix-go-compatibility.sh
-./fix-go-version.sh
-./fix-go-compatibility.sh
+chmod +x fixer/fix-go-version.sh fixer/fix-go-compatibility.sh
+./fixer/fix-go-version.sh
+./fixer/fix-go-compatibility.sh
 
 # Then start the Docker services
 docker-compose up -d
@@ -227,11 +293,11 @@ If you encounter port conflicts, use our restart scripts:
 
 ```bash
 # Windows (PowerShell)
-.\restart-docker.ps1
+.\scripts\restart-docker.ps1
 
 # Linux/macOS
-chmod +x restart-docker.sh
-./restart-docker.sh
+chmod +x scripts/restart-docker.sh
+./scripts/restart-docker.sh
 ```
 
 ### Running Tests
@@ -241,12 +307,12 @@ Before running tests, make sure you've applied the compatibility fixes:
 ```bash
 # Fix Go compatibility first
 # Windows:
-.\fix-go-version.ps1
-.\fix-go-compatibility.ps1
+.\fixer\fix-go-version.ps1
+.\fixer\fix-go-compatibility.ps1
 # Linux/macOS:
-chmod +x fix-go-version.sh fix-go-compatibility.sh
-./fix-go-version.sh
-./fix-go-compatibility.sh
+chmod +x fixer/fix-go-version.sh fixer/fix-go-compatibility.sh
+./fixer/fix-go-version.sh
+./fixer/fix-go-compatibility.sh
 
 # Then run tests
 # Run all blockchain tests
@@ -258,11 +324,11 @@ go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockcha
 go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestBlockchain
 
 # Using test script (Windows)
-.\runtest.ps1
+.\scripts\runtest.ps1
 
 # Using test script (Linux/macOS)
-chmod +x restart.sh
-./restart.sh
+chmod +x scripts/restart.sh
+./scripts/restart.sh
 ```
 
 ### Running Benchmarks
@@ -290,11 +356,11 @@ If you encounter module path errors:
 
 ```bash
 # Windows (PowerShell)
-.\fix-module-path.ps1
+.\fixer\fix-module-path.ps1
 
 # Linux/macOS
-chmod +x fix-module-path.sh
-./fix-module-path.sh
+chmod +x fixer/fix-module-path.sh
+./fixer/fix-module-path.sh
 ```
 
 #### 2. Import Path Issues
@@ -303,11 +369,11 @@ For import path errors:
 
 ```bash
 # Windows (PowerShell)
-.\fix-all-imports.ps1
+.\fixer\fix-all-imports.ps1
 
 # Linux/macOS
-chmod +x fix-all-imports.sh
-./fix-all-imports.sh
+chmod +x fixer/fix-all-imports.sh
+./fixer/fix-all-imports.sh
 ```
 
 #### 3. Go Version Issues
@@ -316,11 +382,11 @@ If you see errors about incompatible Go versions:
 
 ```bash
 # Windows (PowerShell)
-.\fix-go-version.ps1
+.\fixer\fix-go-version.ps1
 
 # Linux/macOS
-chmod +x fix-go-version.sh
-./fix-go-version.sh
+chmod +x fixer/fix-go-version.sh
+./fixer/fix-go-version.sh
 ```
 
 #### 4. Docker Compose Issues
@@ -333,11 +399,11 @@ docker-compose build --build-arg AVALANCHE_PARALLEL_PATH=../avalanche-parallel
 
 # Or use our restart script
 # Windows (PowerShell)
-.\restart-docker.ps1
+.\scripts\restart-docker.ps1
 
 # Linux/macOS
-chmod +x restart-docker.sh
-./restart-docker.sh
+chmod +x scripts/restart-docker.sh
+./scripts/restart-docker.sh
 ```
 
 #### 5. Sorting Errors with bytes.Compare
@@ -346,10 +412,10 @@ If you encounter syntax errors in sorting.go:
 
 ```bash
 # Windows (PowerShell)
-.\fix-sorting.ps1
+.\fixer\fix-sorting.ps1
 
 # Linux/macOS - manually fix by copying sorting_fixed.go
-cp sorting_fixed.go default/utils/sorting.go
+cp fixer/sorting_fixed.go default/utils/sorting.go
 ```
 
 #### 6. Missing Package Errors (cmp, maps, slices)
@@ -358,17 +424,96 @@ Apply the compatibility fixes to create compatible implementations:
 
 ```bash
 # Windows (PowerShell)
-.\fix-go-compatibility.ps1
+.\fixer\fix-go-compatibility.ps1
 
 # Linux/macOS
-chmod +x fix-go-compatibility.sh
-./fix-go-compatibility.sh
+chmod +x fixer/fix-go-compatibility.sh
+./fixer/fix-go-compatibility.sh
 ```
 
 This will create:
 - cmp_compatibility.go
 - maps_compatibility.go  
 - slices_compatibility.go
+
+#### 7. Set Redeclaration Errors (on Linux)
+
+If you encounter "redeclared in this block" errors in the set package on Linux:
+
+```bash
+# Linux/macOS
+chmod +x fixer/fix-set-duplicates-linux.sh
+./fixer/fix-set-duplicates-linux.sh
+```
+
+For Windows, use:
+```powershell
+.\fixer\fix-set-duplicates.ps1
+```
+
+#### 8. Package Conflict in Utils Directory
+
+If you encounter errors like "found packages utils and main in default/utils":
+
+```bash
+# Windows PowerShell
+$sortingContent = Get-Content -Path "default\utils\sorting.go"
+$sortingContent = $sortingContent -replace "package main", "package utils"
+$sortingContent | Set-Content -Path "default\utils\sorting.go"
+
+# Linux/macOS
+sed -i 's/package main/package utils/g' default/utils/sorting.go
+```
+
+This is already included in the fix-set-duplicates scripts.
+
+#### 9. Multierr and bytes.Compare Errors on Linux
+
+If you encounter errors like:
+```
+# go.uber.org/multierr: undefined: atomic.Bool
+note: module requires Go 1.19
+# github.com/ava-labs/avalanchego/utils: bytes.Compare undefined (type [][]byte has no field or method Compare)
+```
+
+Use our all-in-one fix script for Linux:
+```bash
+chmod +x fixer/fix-all-linux.sh
+./fixer/fix-all-linux.sh
+```
+
+This script will:
+1. Fix Go version and dependencies in go.mod
+2. Fix package declarations
+3. Fix bytes.Compare issues in sorting.go
+4. Fix set package duplicates
+5. Run go mod tidy
+
+#### 10. Missing go.sum Entries
+
+If you encounter errors like:
+```
+go: go.uber.org/atomic@v1.7.0: missing go.sum entry; to add it:
+        go mod download go.uber.org/atomic
+```
+
+Fix it with:
+```bash
+# Single fix script
+chmod +x fixer/fix-go-sum.sh
+./fixer/fix-go-sum.sh
+
+# Or use our all-in-one fix script which includes this fix
+chmod +x fixer/fix-all-linux.sh
+./fixer/fix-all-linux.sh
+```
+
+Alternatively, run these commands manually:
+```bash
+go mod download go.uber.org/atomic
+go mod download
+go mod tidy
+```
 
 ## ✨ Features
 
@@ -407,13 +552,13 @@ git clone https://github.com/Final-Project-13520137/avalanche-parallel-dag.git
 cd avalanche-parallel-dag
 
 # Windows (PowerShell)
-.\fix-go-version.ps1
-.\fix-go-compatibility.ps1
+.\fixer\fix-go-version.ps1
+.\fixer\fix-go-compatibility.ps1
 
 # Linux/macOS
-chmod +x fix-go-version.sh fix-go-compatibility.sh
-./fix-go-version.sh
-./fix-go-compatibility.sh
+chmod +x fixer/fix-go-version.sh fixer/fix-go-compatibility.sh
+./fixer/fix-go-version.sh
+./fixer/fix-go-compatibility.sh
 ```
 
 ### Step 2: Build Binaries
@@ -449,11 +594,11 @@ docker-compose up -d
 ```bash
 # Run test with script
 # Windows:
-.\runtest.ps1
+.\scripts\runtest.ps1
 
 # Linux/macOS:
-chmod +x restart.sh
-./restart.sh
+chmod +x scripts/restart.sh
+./scripts/restart.sh
 
 # Or run individual tests
 go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain
@@ -466,23 +611,21 @@ If you encounter any issues, these commands may help:
 ```bash
 # Fix sorting errors
 # Windows:
-.\fix-sorting.ps1
+.\fixer\fix-sorting.ps1
 # Linux/macOS:
-cp sorting_fixed.go default/utils/sorting.go
+cp fixer/sorting_fixed.go default/utils/sorting.go
 
 # Fix module path issues
 # Windows:
-.\fix-module-path.ps1
+.\fixer\fix-module-path.ps1
 # Linux/macOS:
-chmod +x fix-module-path.sh
-./fix-module-path.sh
+chmod +x fixer/fix-module-path.sh
+./fixer/fix-module-path.sh
 
 # Fix import path issues
 # Windows:
-.\fix-all-imports.ps1
+.\fixer\fix-all-imports.ps1
 # Linux/macOS:
-chmod +x fix-all-imports.sh
-./fix-all-imports.sh
+chmod +x fixer/fix-all-imports.sh
+./fixer/fix-all-imports.sh
 ```
-
-For more detailed information, refer to the appropriate sections in this README.
