@@ -157,5 +157,5 @@ func (tx *Transaction) AddDependency(dep snowstorm.Tx) {
 // MissingDependencies returns the missing dependencies of the transaction
 func (tx *Transaction) MissingDependencies() (set.Set[ids.ID], error) {
 	// For simplicity, we'll just return an empty set since we don't track missing dependencies
-	return set.Set[ids.ID]{}, nil
+	return set.Empty[ids.ID](), nil
 } 

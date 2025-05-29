@@ -444,7 +444,7 @@ For a quick test of the blockchain functionality:
 go run simple_test.go
 ```
 
-## �� Docker Deployment
+## 📋 Docker Deployment
 
 Deploy the entire system using Docker Compose:
 
@@ -474,6 +474,138 @@ After deployment, you can access:
 - **Prometheus**: http://localhost:19090
 - **Grafana**: http://localhost:13000 (admin/admin)
 
+## 🔧 Troubleshooting
+
+### Go 1.18 Compatibility Issues
+
+If you encounter Go compatibility issues during building or testing, use our comprehensive fix scripts:
+
+```bash
+# Windows (PowerShell)
+.\fixer\fix-all-go-issues.ps1
+
+# Linux/macOS
+chmod +x fixer/fix-all-go-issues.sh
+./fixer/fix-all-go-issues.sh
+```
+
+These scripts fix several common issues including:
+- Sorting comparison syntax errors
+- Missing set package implementation
+- Transaction dependency issues
+
+### Docker Compose Issues
+
+```bash
+# Rebuild containers with specific arguments
+docker-compose -f config/docker-compose.yml build --build-arg AVALANCHE_PARALLEL_PATH=../avalanche-parallel
+
+# Or use our restart script
+# Windows (PowerShell)
+.\scripts\restart-docker.ps1 -DockerComposeFile config/docker-compose.yml
+
+# Linux/macOS
+chmod +x scripts/restart-docker.sh
+./scripts/restart-docker.sh -f config/docker-compose.yml
+```
+
+<details>
+<summary>More troubleshooting tips</summary>
+
+### Module Path Issues
+
+```bash
+# Windows (PowerShell)
+.\fixer\fix-module-path.ps1
+
+# Linux/macOS
+chmod +x fixer/fix-module-path.sh
+./fixer/fix-module-path.sh
+```
+
+### Import Path Issues
+
+```bash
+# Windows (PowerShell)
+.\fixer\fix-all-imports.ps1
+
+# Linux/macOS
+chmod +x fixer/fix-all-imports.sh
+./fixer/fix-all-imports.sh
+```
+
+### Go Version Issues
+
+```bash
+# Windows (PowerShell)
+.\fixer\fix-go-version.ps1
+
+# Linux/macOS
+chmod +x fixer/fix-go-version.sh
+./fixer/fix-go-version.sh
+```
+
+</details>
+
+## 📋 Quick Reference
+
+Here's a simplified cheat sheet for building and running the project with Go 1.18:
+
+### Step 1: Setup & Fix Compatibility
+
+```bash
+# Clone repository and enter directory
+git clone https://github.com/Final-Project-13520137/avalanche-parallel-dag.git
+cd avalanche-parallel-dag
+
+# Windows (PowerShell)
+.\fixer\fix-go-version.ps1
+.\fixer\fix-go-compatibility.ps1
+
+# Linux/macOS
+chmod +x fixer/fix-go-version.sh fixer/fix-go-compatibility.sh
+./fixer/fix-go-version.sh
+./fixer/fix-go-compatibility.sh
+```
+
+### Step 2: Build Binaries
+
+```bash
+# Windows (PowerShell)
+go build -o avalanche-parallel.exe .\cmd\avalanche
+go build -o worker.exe .\cmd\worker
+
+# Linux/macOS
+go build -o avalanche-parallel ./cmd/avalanche
+go build -o worker ./cmd/worker
+```
+
+### Step 3: Run the Application
+
+```bash
+# Option 1: Run standalone (in separate terminals)
+# Windows:
+.\avalanche-parallel.exe --network-id=local --staking-enabled=false --http-port=9650
+.\worker.exe --api-port=9652 --threads=4
+
+# Option 2: Run with Docker Compose
+docker-compose -f config/docker-compose.yml up -d
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 👥 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📱 Contact
+
+For questions or support, please open an issue on our GitHub repository.
+
+---
+
 ## ⚠️ Important: Go 1.18 Compatibility
 
 This project **requires Go 1.18 specifically**. It is not compatible with newer Go versions due to dependency constraints.
@@ -497,6 +629,24 @@ For detailed troubleshooting, see [fixer/FIX-GO118-GUIDE.md](fixer/FIX-GO118-GUI
 </details>
 
 ## 🔧 Troubleshooting
+
+### Go 1.18 Compatibility Issues
+
+If you encounter Go compatibility issues during building or testing, use our comprehensive fix scripts:
+
+```bash
+# Windows (PowerShell)
+.\fixer\fix-all-go-issues.ps1
+
+# Linux/macOS
+chmod +x fixer/fix-all-go-issues.sh
+./fixer/fix-all-go-issues.sh
+```
+
+These scripts fix several common issues including:
+- Sorting comparison syntax errors
+- Missing set package implementation
+- Transaction dependency issues
 
 ### Docker Compose Issues
 
