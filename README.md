@@ -49,31 +49,101 @@ avalanche-parallel/
 <div align="center">
 
 ```mermaid
-graph TD
-    subgraph Architecture
-        A((Main Node)):::mainNode
-        B((Worker 1)):::workerNode
-        C((Worker 2)):::workerNode
-        D((Worker 3)):::workerNode
-        E((Worker N)):::workerNode
+flowchart TD
+    %% Main Components
+    MN[Avalanche Main Node]:::mainNode
+    QB[Queue Balancer]:::controller
+    API[API Gateway]:::controller
+    PROM[Prometheus]:::monitoring
+    GRAF[Grafana]:::monitoring
+    
+    %% Workers
+    subgraph Workers
+        WP1[Worker Pod 1]:::workerNode
+        WP2[Worker Pod 2]:::workerNode
+        WP3[Worker Pod 3]:::workerNode
+        WPN[Worker Pod N]:::workerNode
         
-        F[DAG Vertices]:::dataStore
-        G[Pending Queue]:::dataStore
-        H[Processed Results]:::dataStore
-        
-        A --> |1. Distribute Tasks| B & C & D & E
-        B & C & D & E --> |2. Process Vertices| A
-        A --> |3. Store| F
-        A --> |4. Queue| G
-        A <--> |5. Results| H
+        subgraph "Worker Pod Structure"
+            direction TB
+            WM[Worker Manager]:::component
+            T1[Thread 1]:::thread
+            T2[Thread 2]:::thread
+            T3[Thread 3]:::thread
+            TN[Thread N]:::thread
+            
+            WM --> T1 & T2 & T3 & TN
+        end
     end
     
-    classDef mainNode fill:#FF5000,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    %% Storage Components
+    subgraph Storage
+        DB[(Transaction DB)]:::storage
+        FS[(File System)]:::storage
+        MQ[(Message Queue)]:::storage
+    end
+    
+    %% Consensus Components
+    subgraph "Consensus Engine"
+        DAG[DAG Manager]:::component
+        VP[Vertex Processor]:::component
+        DM[Dependency Manager]:::component
+        TS[Transaction Scheduler]:::component
+    end
+    
+    %% Kubernetes Management
+    subgraph "Kubernetes Orchestration"
+        HPA[Horizontal Pod Autoscaler]:::k8s
+        SC[Service Controller]:::k8s
+        PVC[Persistent Volume Claims]:::k8s
+        SVC[Services]:::k8s
+    end
+    
+    %% Data Flow Connections
+    MN <--> API
+    API <--> QB
+    QB <--> |"1. Distribute Tasks"| Workers
+    Workers -->|"2. Process Results"| QB
+    MN <--> DAG
+    DAG <--> VP
+    VP <--> DM
+    DM <--> TS
+    
+    %% Storage Connections
+    MN <--> DB
+    MN <--> FS
+    MN <--> MQ
+    Workers <--> MQ
+    
+    %% Monitoring
+    MN --> PROM
+    Workers --> PROM
+    PROM --> GRAF
+    
+    %% Kubernetes Management
+    HPA --> Workers
+    SC --> Workers
+    PVC --> Storage
+    SVC --> API
+    
+    %% Data Flow Labels
+    linkStyle 0,1,2,3,4,5,6,7 stroke:#FF5000,stroke-width:2px
+    linkStyle 8,9,10,11,12 stroke:#107C10,stroke-width:2px
+    linkStyle 13,14,15 stroke:#9B59B6,stroke-width:2px
+    linkStyle 16,17,18,19 stroke:#3498DB,stroke-width:2px
+    
+    %% Styles
+    classDef mainNode fill:#FF5000,stroke:#333,stroke-width:3px,color:white,font-weight:bold
     classDef workerNode fill:#0078D7,stroke:#333,stroke-width:2px,color:white,font-weight:bold
-    classDef dataStore fill:#107C10,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef controller fill:#FFA500,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef component fill:#2ECC71,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef storage fill:#8E44AD,stroke:#333,stroke-width:2px,color:white,font-weight:bold
+    classDef thread fill:#3498DB,stroke:#333,stroke-width:1px,color:white
+    classDef monitoring fill:#E74C3C,stroke:#333,stroke-width:2px,color:white
+    classDef k8s fill:#34495E,stroke:#333,stroke-width:2px,color:white,font-weight:bold
 ```
 
-*A high-performance, scalable implementation of Directed Acyclic Graph (DAG) processing for the Avalanche consensus protocol with parallel and distributed execution*
+*A comprehensive, high-performance implementation of Directed Acyclic Graph (DAG) processing for the Avalanche consensus protocol with parallel and distributed execution*
 
 </div>
 
@@ -85,6 +155,35 @@ This project implements a high-performance version of the Directed Acyclic Graph
 - **Distributed Architecture**: Scales horizontally with worker nodes across multiple containers
 - **Optimized DAG Management**: Implements efficient frontier tracking and parent-child dependency resolution
 - **Containerized Deployment**: Provides Docker and Kubernetes configurations for easy scaling
+
+## 🔄 System Architecture
+
+The Avalanche Parallel DAG architecture consists of these key components:
+
+### Core Components
+
+- **Main Node**: Central coordinator that manages the DAG, assigns work, and applies consensus rules
+- **API Gateway**: Exposes endpoints for transactions and queries while handling load balancing
+- **Queue Balancer**: Distributes processing tasks evenly across available worker nodes
+- **Consensus Engine**: Implements the Avalanche consensus protocol with parallel optimizations
+
+### Worker Infrastructure
+
+- **Worker Pods**: Distributed processing units that execute transaction validations in parallel
+- **Worker Manager**: Controls thread allocation and monitors performance within each worker
+- **Processing Threads**: Individual execution units that process assigned DAG vertices
+
+### Storage Layer
+
+- **Transaction Database**: Persistent storage for confirmed transactions and blockchain state
+- **Message Queue**: High-performance queue for inter-component communication
+- **File System**: Stores blockchain data, configuration, and system state
+
+### Monitoring & Management
+
+- **Prometheus**: Collects real-time metrics from all system components
+- **Grafana**: Visualizes system performance and health metrics
+- **Kubernetes Orchestration**: Manages deployment, scaling, and fault tolerance
 
 ## 🔄 How It Works
 
