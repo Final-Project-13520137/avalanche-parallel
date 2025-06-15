@@ -324,35 +324,9 @@ The foundational layer focuses on implementation details:
 ### Quick Start
 
 ```bash
-# 1. Clone the repository
+# Clone the repository
 git clone https://github.com/Final-Project-13520137/avalanche-parallel-dag.git
 cd avalanche-parallel-dag
-
-# 2. Fix Go compatibility (essential for Go 1.18)
-# For Windows:
-.\fixer\fix-all-go-issues.ps1
-# Or use individual fix scripts:
-# .\fixer\fix-go-version.ps1
-# .\fixer\fix-go-compatibility.ps1
-# .\fixer\fix-sorting.ps1
-
-# For Linux/macOS:
-chmod +x fixer/fix-all-go-issues.sh
-./fixer/fix-all-go-issues.sh
-# Or use individual fix scripts:
-# chmod +x fixer/fix-go-version.sh fixer/fix-go-compatibility.sh fixer/fix-sorting.sh
-# ./fixer/fix-go-version.sh
-# ./fixer/fix-go-compatibility.sh
-# ./fixer/fix-sorting.sh
-
-# 3. Build the binaries
-# For Windows:
-go build -o avalanche-parallel.exe .\cmd\avalanche
-go build -o worker.exe .\cmd\worker
-
-# For Linux/macOS:
-go build -o avalanche-parallel ./cmd/avalanche
-go build -o worker ./cmd/worker
 ```
 
 ### Project Structure
@@ -389,34 +363,9 @@ avalanche-parallel/
 
 ### Running the System
 
-#### Standalone Mode
-
-```bash
-# Windows
-.\avalanche-parallel.exe --network-id=local --staking-enabled=false --http-port=9650
-# In another terminal:
-.\worker.exe --api-port=9652 --threads=4
-
-# Linux/macOS
-./avalanche-parallel --network-id=local --staking-enabled=false --http-port=9650
-# In another terminal:
-./worker --api-port=9652 --threads=4
-```
-
 ## 🧪 Testing
 
 The project includes several test scripts to verify functionality and performance.
-
-### Running Blockchain Tests
-
-```bash
-# Windows (PowerShell)
-.\scripts\run_blockchain_tests.ps1
-
-# Linux/macOS
-chmod +x scripts/run_blockchain_tests.sh
-./scripts/run_blockchain_tests.sh
-```
 
 The test script runs three types of tests:
 1. **Unit Tests**: Basic functionality tests for individual components
@@ -473,7 +422,7 @@ chmod +x scripts/run_parallel_benchmark.sh
 ./scripts/run_parallel_benchmark.sh
 ```
 
-#### Advanced Benchmark Options
+#### Test Benchmark Options
 
 The benchmark scripts support several testing modes and parameters:
 
@@ -690,7 +639,7 @@ go run .\scripts\transaction_load.go --benchmark
 go run ./scripts/transaction_load.go --benchmark
 ```
 
-## 📋 Docker Deployment
+## 📋 Running Using Docker Compose
 
 Deploy the entire system using Docker Compose:
 
@@ -722,64 +671,11 @@ After deployment, you can access:
 
 ## 🔧 Troubleshooting
 
-### Go 1.18 Compatibility Issues
-
-If you encounter Go compatibility issues during building or testing, use our comprehensive fix scripts:
-
-```bash
-# Windows (PowerShell)
-# Option 1: Comprehensive fix (recommended)
-.\fixer\fix-all-go-issues.ps1
-
-# Option 2: Minimal fix (faster, for critical issues only)
-.\fixer\fix-go-minimal.ps1
-
-# Linux/macOS
-chmod +x fixer/fix-all-go-issues.sh
-./fixer/fix-all-go-issues.sh
-```
-
-These scripts fix several common issues including:
-- Sorting comparison syntax errors
-- Missing set package implementation
-- Transaction dependency issues
-
-#### Specific Issue Fixes
-
-For specific issues, you can use these targeted scripts:
-
-##### bytes.Compare Syntax Error
-
-```bash
-# Windows (PowerShell)
-.\fixer\fix-sorting.ps1
-
-# Linux/macOS
-chmod +x fixer/fix-sorting.sh
-./fixer/fix-sorting.sh
-```
-
 ##### Set Package Implementation
 
 The `fix-all-go-issues` scripts will also create the necessary set package implementation if it's missing.
 
-### Docker Compose Issues
-
-```bash
-# Rebuild containers with specific arguments
-docker-compose -f config/docker-compose.yml build --build-arg AVALANCHE_PARALLEL_PATH=../avalanche-parallel
-
-# Or use our restart script
-# Windows (PowerShell)
-.\scripts\restart-docker.ps1 -DockerComposeFile config/docker-compose.yml
-
-# Linux/macOS
-chmod +x scripts/restart-docker.sh
-./scripts/restart-docker.sh -f config/docker-compose.yml
-```
-
 <details>
-<summary>More troubleshooting tips</summary>
 
 ### Module Path Issues
 
@@ -814,63 +710,17 @@ chmod +x fixer/fix-go-version.sh
 ./fixer/fix-go-version.sh
 ```
 
-</details>
-
-## 📋 Quick Reference
-
-Here's a simplified cheat sheet for building and running the project with Go 1.18:
-
-### Step 1: Setup & Fix Compatibility
+### bytes.Compare Syntax Error
 
 ```bash
-# Clone repository and enter directory
-git clone https://github.com/Final-Project-13520137/avalanche-parallel-dag.git
-cd avalanche-parallel-dag
-
 # Windows (PowerShell)
-# Option 1: Use our all-in-one fix script:
-.\fixer\fix-all-go-issues.ps1
-
-# Option 2: Use individual fix scripts:
-.\fixer\fix-go-version.ps1
-.\fixer\fix-go-compatibility.ps1
 .\fixer\fix-sorting.ps1
 
 # Linux/macOS
-# Option 1: Use our all-in-one fix script:
-chmod +x fixer/fix-all-go-issues.sh
-./fixer/fix-all-go-issues.sh
-
-# Option 2: Use individual fix scripts:
-chmod +x fixer/fix-go-version.sh fixer/fix-go-compatibility.sh fixer/fix-sorting.sh
-./fixer/fix-go-version.sh
-./fixer/fix-go-compatibility.sh
+chmod +x fixer/fix-sorting.sh
 ./fixer/fix-sorting.sh
 ```
-
-### Step 2: Build Binaries
-
-```bash
-# Windows (PowerShell)
-go build -o avalanche-parallel.exe .\cmd\avalanche
-go build -o worker.exe .\cmd\worker
-
-# Linux/macOS
-go build -o avalanche-parallel ./cmd/avalanche
-go build -o worker ./cmd/worker
-```
-
-### Step 3: Run the Application
-
-```bash
-# Option 1: Run standalone (in separate terminals)
-# Windows:
-.\avalanche-parallel.exe --network-id=local --staking-enabled=false --http-port=9650
-.\worker.exe --api-port=9652 --threads=4
-
-# Option 2: Run with Docker Compose
-docker-compose -f config/docker-compose.yml up -d
-```
+</details>
 
 ## 📄 License
 
@@ -885,29 +735,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 For questions or support, please open an issue on our GitHub repository.
 
 ---
-
-## ⚠️ Important: Go 1.18 Compatibility
-
-This project **requires Go 1.18 specifically**. It is not compatible with newer Go versions due to dependency constraints.
-
-<details>
-<summary>Common issues and solutions</summary>
-
-1. **Package Conflict in `utils` Directory**
-   - Error: `found packages utils (atomic.go) and main (sorting.go) in default/utils`
-   - Solution: Run `.\fixer\fix-all-go-issues.ps1` (Windows) or `./fixer/fix-all-go-issues.sh` (Linux/macOS)
-
-2. **`bytes.Compare` Syntax Issues**
-   - Error: `bytes.Compare undefined (type [][]byte has no field or method Compare)` or `invalid operation: bytes.Compare(iHash, jHash) < 0 < 0`
-   - Solution: Run `.\fixer\fix-sorting.ps1` (Windows) or `./fixer/fix-sorting.sh` (Linux/macOS)
-
-3. **Missing `set` Package**
-   - Error: `undefined: set.Set` or similar errors related to missing set package
-   - Solution: Run `.\fixer\fix-all-go-issues.ps1` (Windows) or `./fixer/fix-all-go-issues.sh` (Linux/macOS)
-
-4. **multierr Dependency Requiring Go 1.19+**
-   - Error: `go.uber.org/multierr: undefined: atomic.Bool` and `note: module requires Go 1.19`
-   - Solution: Run `.\fixer\fix-go-version.ps1` (Windows) or `./fixer/fix-go-version.sh` (Linux/macOS)
-
-For detailed troubleshooting, see [fixer/FIX-GO118-GUIDE.md](fixer/FIX-GO118-GUIDE.md).
-</details>
