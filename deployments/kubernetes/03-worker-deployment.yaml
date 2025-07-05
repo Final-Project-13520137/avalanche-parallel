@@ -1,0 +1,155 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: avalanche-worker
+  namespace: avalanche-parallel
+spec:
+  selector:
+    app: avalanche-worker
+  ports:
+    - name: api
+      port: 9652
+      targetPort: 9652
+    - name: metrics
+      port: 9091
+      targetPort: 9091
+  type: ClusterIP
+  sessionAffinity: None
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: avalanche-worker
+  namespace: avalanche-parallel
+spec:
+  replicas: 3  # Initial replicas, will be managed by HPA
+  selector:
+    matchLabels:
+      app: avalanche-worker
+  template:
+    metadata:
+      labels:
+        app: avalanche-worker
+        component: worker
+    spec:
+      containers:
+      - name: worker
+        image: avalanche-parallel/worker:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9652
+          name: api
+        - containerPort: 9091
+          name: metrics
+        env:
+        - name: WORKER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: avalanche-config
+              key: log_level
+        - name: MAX_PROCESSING_THREADS
+          valueFrom:
+            configMapKeyRef:
+              name: avalanche-config
+              key: max_processing_threads
+        - name: RABBITMQ_HOST
+          value: "rabbitmq.avalanche-parallel.svc.cluster.local"
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: RABBITMQ_USER
+          value: "avalanche"
+        - name: RABBITMQ_PASS
+          value: "avalanche123"
+        - name: MAIN_NODE_URL
+          value: "http://avalanche-main-node.avalanche-parallel.svc.cluster.local:9650"
+        - name: NODE_ROLE
+          value: "worker"
+        - name: ENABLE_TX_VALIDATION
+          value: "true"
+        - name: ENABLE_SIGNATURE_VER
+          value: "true"
+        - name: ENABLE_CONSENSUS_VOTE
+          value: "true"
+        - name: ENABLE_CONFIDENCE_CAL
+          value: "true"
+        - name: ENABLE_STATE_UPDATE
+          value: "true"
+        - name: ENABLE_CONFLICT_DET
+          value: "true"
+        - name: WORKER_QUEUE_NAME
+          value: "avalanche-tasks"
+        - name: WORKER_CONCURRENCY
+          value: "10"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9652
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 9652
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: avalanche-worker-hpa
+  namespace: avalanche-parallel
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: avalanche-worker
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: rabbitmq_queue_messages_ready
+      target:
+        type: AverageValue
+        averageValue: "30"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 4
+        periodSeconds: 60
+      selectPolicy: Max 

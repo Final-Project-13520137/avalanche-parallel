@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: avalanche-parallel
+
+resources:
+  - 00-namespace.yaml
+  - 01-message-queue.yaml
+  - 02-main-node.yaml
+  - 03-worker-deployment.yaml
+  - 04-api-gateway.yaml
+  - 05-monitoring.yaml
+  - 06-grafana-dashboard.yaml
+
+images:
+  - name: avalanche-parallel/main-node
+    newTag: latest
+  - name: avalanche-parallel/worker
+    newTag: latest
+
+configMapGenerator:
+  - name: avalanche-config
+    behavior: merge
+    literals:
+      - network=local
+      - log_level=info
+      - max_processing_threads=4
+
+patchesStrategicMerge:
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: avalanche-worker
+      namespace: avalanche-parallel
+    spec:
+      replicas: 5  # Override default replicas
+
+commonLabels:
+  app.kubernetes.io/name: avalanche-parallel
+  app.kubernetes.io/instance: production
+  app.kubernetes.io/component: blockchain
+  app.kubernetes.io/part-of: avalanche
+
+commonAnnotations:
+  managed-by: kustomize
+  version: "1.0.0" 

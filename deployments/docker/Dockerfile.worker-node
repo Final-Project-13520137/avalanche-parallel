@@ -1,0 +1,54 @@
+# Build stage
+FROM golang:1.19-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache build-base git curl bash
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the worker binary
+RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o avalanche-worker ./cmd/worker
+
+# Runtime stage
+FROM alpine:3.18
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates curl bash
+
+# Create user for running the application
+RUN addgroup -g 1000 avalanche && \
+    adduser -u 1000 -G avalanche -D avalanche
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/avalanche-worker /usr/local/bin/
+
+# Create necessary directories
+RUN mkdir -p /var/lib/avalanche /var/log/avalanche && \
+    chown -R avalanche:avalanche /var/lib/avalanche /var/log/avalanche
+
+# Switch to non-root user
+USER avalanche
+
+# Expose ports
+EXPOSE 9652 9091
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:9652/health || exit 1
+
+# Set entrypoint
+ENTRYPOINT ["avalanche-worker"]
+
+# Default command arguments
+CMD ["--config=/etc/avalanche/worker-config.json"] 
