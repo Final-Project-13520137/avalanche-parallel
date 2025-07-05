@@ -291,6 +291,94 @@ EOF
     print_success "Redis deployed successfully"
 }
 
+# Deploy PostgreSQL
+deploy_postgres() {
+    print_step "Deploying PostgreSQL..."
+    
+    cat << EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: avalanche
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "avalanche"
+        - name: POSTGRES_USER
+          value: "avalanche"
+        - name: POSTGRES_PASSWORD
+          value: "avalanche123"
+        - name: POSTGRES_INITDB_ARGS
+          value: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - avalanche
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - avalanche
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: postgres-data
+        emptyDir: {}
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: avalanche
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+EOF
+    
+    print_success "PostgreSQL deployed successfully"
+}
+
 # Deploy worker pools
 deploy_worker_pools() {
     print_step "Deploying worker pools..."
@@ -302,7 +390,7 @@ deploy_worker_pools() {
     kubectl apply -f "$K8S_DIR/worker-pools/validator-worker-deployment.yaml"
     
     # Deploy DAG+State workers
-    create_dag_state_deployment
+    # create_dag_state_deployment  # Commented out since we already have the file
     kubectl apply -f "$K8S_DIR/worker-pools/dag-state-worker-deployment.yaml"
     
     print_success "Worker pools deployed successfully"
@@ -534,10 +622,13 @@ wait_for_deployments() {
     # Wait for Redis
     kubectl wait --for=condition=available --timeout=300s deployment/redis -n avalanche
     
+    # Wait for PostgreSQL
+    kubectl wait --for=condition=available --timeout=300s deployment/postgres -n avalanche
+    
     # Wait for worker pools
     for worker in "${WORKER_POOLS[@]}"; do
         print_step "Waiting for $worker to be ready..."
-        kubectl wait --for=condition=available --timeout=300s deployment/${worker}-pool -n avalanche
+        kubectl wait --for=condition=available --timeout=300s deployment/$worker -n avalanche
     done
     
     print_success "All deployments are ready"
@@ -625,7 +716,7 @@ scale_workers() {
     
     print_step "Scaling $worker_type to $replicas replicas..."
     
-    kubectl scale deployment ${worker_type}-pool --replicas=$replicas -n avalanche
+    kubectl scale deployment $worker_type --replicas=$replicas -n avalanche
     
     print_success "$worker_type scaled to $replicas replicas"
 }
@@ -690,6 +781,7 @@ main() {
             build_worker_images
             setup_namespace
             deploy_redis
+            deploy_postgres
             deploy_worker_pools
             setup_monitoring
             wait_for_deployments

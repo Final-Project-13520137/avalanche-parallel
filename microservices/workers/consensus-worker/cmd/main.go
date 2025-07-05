@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "fmt"
     "log"
+    "net/http"
     "os"
     "os/signal"
     "strconv"
@@ -15,8 +16,20 @@ import (
     "github.com/go-redis/redis/v8"
     "github.com/ava-labs/avalanchego/ids"
     "github.com/ava-labs/avalanchego/snow/choices"
-    "avalanche-microservices/shared/common"
 )
+
+// Transaction represents a transaction in the system
+type Transaction struct {
+    ID        ids.ID      `json:"id"`
+    From      string      `json:"from"`
+    To        string      `json:"to"`
+    Amount    uint64      `json:"amount"`
+    Data      []byte      `json:"data"`
+    Hash      ids.ID      `json:"hash"`
+    Size      int         `json:"size"`
+    Nonce     uint64      `json:"nonce"`
+    Timestamp time.Time   `json:"timestamp"`
+}
 
 // ConsensusWorker processes consensus tasks in parallel
 type ConsensusWorker struct {
@@ -38,7 +51,7 @@ type ConsensusTask struct {
     Type        string              `json:"type"`
     VertexID    ids.ID              `json:"vertex_id"`
     ParentIDs   []ids.ID            `json:"parent_ids"`
-    Transactions []common.Transaction `json:"transactions"`
+    Transactions []Transaction `json:"transactions"`
     Priority    string              `json:"priority"`
     Timestamp   time.Time           `json:"timestamp"`
     RetryCount  int                 `json:"retry_count"`
@@ -99,6 +112,9 @@ func main() {
     
     // Create consensus worker
     worker := NewConsensusWorker(workerID, redisClient, taskQueue, resultQueue, maxWorkers)
+    
+    // Start HTTP server for health checks
+    go startHTTPServer(worker)
     
     // Start worker
     worker.Start(ctx)
@@ -393,10 +409,52 @@ func getEnv(key, defaultValue string) string {
 }
 
 func getEnvAsInt(key string, defaultValue int) int {
-    if value := os.Getenv(key); value != "" {
-        if intValue, err := strconv.Atoi(value); err == nil {
-            return intValue
-        }
+    value := getEnv(key, "")
+    if value == "" {
+        return defaultValue
     }
-    return defaultValue
+    intValue, err := strconv.Atoi(value)
+    if err != nil {
+        return defaultValue
+    }
+    return intValue
+}
+
+// startHTTPServer starts an HTTP server for health checks
+func startHTTPServer(worker *ConsensusWorker) {
+    mux := http.NewServeMux()
+    
+    // Health check endpoint
+    mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusOK)
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "status":    "healthy",
+            "worker_id": worker.ID,
+            "uptime":    time.Since(time.Now()).String(),
+        })
+    })
+    
+    // Metrics endpoint
+    mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusOK)
+        
+        worker.mu.RLock()
+        processedTasks := worker.ProcessedTasks
+        worker.mu.RUnlock()
+        
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "worker_id":       worker.ID,
+            "processed_tasks": processedTasks,
+            "active_workers":  len(worker.Workers),
+            "timestamp":       time.Now().Unix(),
+        })
+    })
+    
+    // Start server
+    log.Printf("Starting HTTP server on port 8080")
+    if err := http.ListenAndServe(":8080", mux); err != nil {
+        log.Printf("HTTP server error: %v", err)
+    }
 } 

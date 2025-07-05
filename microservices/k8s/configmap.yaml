@@ -1,0 +1,278 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: avalanche-config
+  namespace: avalanche
+data:
+  # Redis configuration
+  redis.conf: |
+    bind 0.0.0.0
+    port 6379
+    save 900 1
+    save 300 10
+    save 60 10000
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    rdbchecksum yes
+    dbfilename dump.rdb
+    dir /data
+    maxmemory 512mb
+    maxmemory-policy allkeys-lru
+
+  # PostgreSQL configuration
+  postgres.conf: |
+    # Basic settings
+    listen_addresses = '*'
+    port = 5432
+    max_connections = 100
+    shared_buffers = 128MB
+    effective_cache_size = 512MB
+    maintenance_work_mem = 64MB
+    checkpoint_completion_target = 0.9
+    wal_buffers = 16MB
+    default_statistics_target = 100
+    random_page_cost = 1.1
+    effective_io_concurrency = 200
+    work_mem = 4MB
+    min_wal_size = 1GB
+    max_wal_size = 4GB
+
+  # API Gateway configuration
+  api-gateway.yaml: |
+    server:
+      port: 9650
+      metrics_port: 9750
+      read_timeout: "30s"
+      write_timeout: "30s"
+      idle_timeout: "60s"
+    
+    redis:
+      url: "redis://redis:6379"
+      pool_size: 10
+      min_idle_conns: 2
+      max_retries: 3
+      dial_timeout: "5s"
+      read_timeout: "3s"
+      write_timeout: "3s"
+    
+    queues:
+      consensus:
+        task_queue: "consensus_tasks"
+        result_queue: "consensus_results"
+        max_retries: 3
+        retry_delay: "2s"
+      
+      validation:
+        task_queue: "validation_tasks"
+        result_queue: "validation_results"
+        max_retries: 3
+        retry_delay: "2s"
+      
+      dag_state:
+        task_queue: "dag_state_tasks"
+        result_queue: "dag_state_results"
+        max_retries: 3
+        retry_delay: "2s"
+    
+    dag_state:
+      endpoint: "http://dag-state-worker-lb:8082"
+      timeout: "10s"
+      max_retries: 3
+    
+    logging:
+      level: "info"
+      format: "json"
+      output: "stdout"
+
+  # Consensus worker configuration
+  consensus-worker.yaml: |
+    worker:
+      type: consensus
+      max_workers: 10
+      task_timeout: "60s"
+      batch_size: 50
+      metrics_interval: "15s"
+    
+    consensus:
+      algorithm: "snowman"
+      max_consensus_time: "30s"
+      min_validators: 3
+      max_validators: 10
+      consensus_threshold: 0.67
+    
+    queue:
+      task_queue: "consensus_tasks"
+      result_queue: "consensus_results"
+      dead_letter_queue: "consensus_failed"
+      max_retries: 3
+      retry_delay: "2s"
+    
+    redis:
+      url: "redis://redis:6379"
+      pool_size: 5
+      min_idle_conns: 1
+      max_retries: 3
+      dial_timeout: "5s"
+      read_timeout: "3s"
+      write_timeout: "3s"
+    
+    logging:
+      level: "info"
+      format: "json"
+      output: "stdout"
+
+  # Validator worker configuration
+  validator-worker.yaml: |
+    worker:
+      type: validation
+      max_workers: 15
+      task_timeout: "30s"
+      batch_size: 100
+      metrics_interval: "15s"
+    
+    validation:
+      signature_check: true
+      balance_check: true
+      format_check: true
+      max_transaction_size: 1048576
+      min_transaction_size: 1
+      max_fee: 1000000
+      min_fee: 1
+    
+    queue:
+      task_queue: "validation_tasks"
+      result_queue: "validation_results"
+      dead_letter_queue: "validation_failed"
+      max_retries: 3
+      retry_delay: "2s"
+    
+    redis:
+      url: "redis://redis:6379"
+      pool_size: 5
+      min_idle_conns: 1
+      max_retries: 3
+      dial_timeout: "5s"
+      read_timeout: "3s"
+      write_timeout: "3s"
+    
+    logging:
+      level: "info"
+      format: "json"
+      output: "stdout"
+
+  # DAG State worker configuration
+  dag-state-worker.yaml: |
+    worker:
+      type: dag_state
+      max_workers: 8
+      task_timeout: "45s"
+      batch_size: 25
+      metrics_interval: "15s"
+    
+    dag_state:
+      storage_type: "postgres"
+      cache_size: 1000
+      cache_ttl: "5m"
+      max_dag_depth: 1000
+      max_vertices_per_level: 100
+    
+    database:
+      url: "postgres://avalanche:avalanche123@postgres:5432/avalanche?sslmode=disable"
+      max_open_conns: 25
+      max_idle_conns: 5
+      conn_max_lifetime: "5m"
+      conn_max_idle_time: "1m"
+    
+    queue:
+      task_queue: "dag_state_tasks"
+      result_queue: "dag_state_results"
+      dead_letter_queue: "dag_state_failed"
+      max_retries: 3
+      retry_delay: "2s"
+    
+    redis:
+      url: "redis://redis:6379"
+      pool_size: 5
+      min_idle_conns: 1
+      max_retries: 3
+      dial_timeout: "5s"
+      read_timeout: "3s"
+      write_timeout: "3s"
+    
+    http:
+      port: 8082
+      read_timeout: "30s"
+      write_timeout: "30s"
+      idle_timeout: "60s"
+    
+    logging:
+      level: "info"
+      format: "json"
+      output: "stdout"
+
+  # Monitoring configuration
+  monitoring.yaml: |
+    prometheus:
+      scrape_interval: "15s"
+      evaluation_interval: "15s"
+      retention_days: 7
+    
+    grafana:
+      admin_password: "admin"
+      default_theme: "light"
+      allow_sign_up: false
+    
+    alerting:
+      enabled: true
+      rules:
+        - name: "high_cpu_usage"
+          condition: "cpu_usage > 80"
+          duration: "5m"
+          severity: "warning"
+        
+        - name: "high_memory_usage"
+          condition: "memory_usage > 85"
+          duration: "5m"
+          severity: "warning"
+        
+        - name: "queue_backlog"
+          condition: "queue_length > 1000"
+          duration: "2m"
+          severity: "critical"
+        
+        - name: "worker_failure"
+          condition: "worker_health == 0"
+          duration: "1m"
+          severity: "critical"
+
+  # Load balancer configuration
+  haproxy.cfg: |
+    global
+      daemon
+      maxconn 4096
+      log stdout format raw local0 info
+    
+    defaults
+      mode http
+      timeout connect 5000ms
+      timeout client 50000ms
+      timeout server 50000ms
+      log global
+    
+    frontend stats
+      bind *:8404
+      stats enable
+      stats uri /stats
+      stats refresh 10s
+      stats admin if TRUE
+    
+    frontend dag_state_frontend
+      bind *:8082
+      default_backend dag_state_backend
+    
+    backend dag_state_backend
+      balance roundrobin
+      option httpchk GET /health
+      http-check expect status 200
+      server dag-state-worker-1 dag-state-worker-1:8082 check
+      server dag-state-worker-2 dag-state-worker-2:8082 check 

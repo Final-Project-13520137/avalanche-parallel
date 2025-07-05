@@ -1,12 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: consensus-worker-pool
+  name: consensus-worker
   namespace: avalanche
   labels:
     app: consensus-worker
-    pool: consensus
-    component: worker
+    type: worker
 spec:
   replicas: 3
   selector:
@@ -16,12 +15,12 @@ spec:
     metadata:
       labels:
         app: consensus-worker
-        pool: consensus
-        component: worker
+        type: worker
     spec:
       containers:
       - name: consensus-worker
         image: avalanche-consensus-worker:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8080
           name: metrics
@@ -31,10 +30,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         - name: REDIS_URL
-          valueFrom:
-            configMapKeyRef:
-              name: avalanche-config
-              key: REDIS_URL
+          value: "redis://redis:6379"
         - name: TASK_QUEUE
           value: "consensus_tasks"
         - name: RESULT_QUEUE
@@ -45,11 +41,11 @@ spec:
           value: "info"
         resources:
           requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
             memory: "512Mi"
             cpu: "500m"
-          limits:
-            memory: "1Gi"
-            cpu: "1000m"
         livenessProbe:
           httpGet:
             path: /health
@@ -60,22 +56,25 @@ spec:
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /ready
+            path: /health
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
           timeoutSeconds: 3
-          failureThreshold: 2
+          failureThreshold: 3
         volumeMounts:
-        - name: worker-config
-          mountPath: /etc/worker
+        - name: config
+          mountPath: /etc/avalanche
           readOnly: true
+        - name: logs
+          mountPath: /var/log
       volumes:
-      - name: worker-config
+      - name: config
         configMap:
-          name: worker-config
+          name: avalanche-config
+      - name: logs
+        emptyDir: {}
       restartPolicy: Always
-      terminationGracePeriodSeconds: 30
 ---
 apiVersion: v1
 kind: Service
@@ -91,7 +90,6 @@ spec:
   - name: metrics
     port: 8080
     targetPort: 8080
-    protocol: TCP
   type: ClusterIP
 ---
 apiVersion: autoscaling/v2
@@ -103,7 +101,7 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: consensus-worker-pool
+    name: consensus-worker
   minReplicas: 2
   maxReplicas: 10
   metrics:
@@ -119,89 +117,16 @@ spec:
       target:
         type: Utilization
         averageUtilization: 80
-  - type: External
-    external:
-      metric:
-        name: redis_queue_depth
-        selector:
-          matchLabels:
-            queue: consensus_tasks
-      target:
-        type: AverageValue
-        averageValue: "100"
   behavior:
-    scaleUp:
-      stabilizationWindowSeconds: 60
-      policies:
-      - type: Percent
-        value: 100
-        periodSeconds: 15
-      - type: Pods
-        value: 2
-        periodSeconds: 60
     scaleDown:
       stabilizationWindowSeconds: 300
       policies:
       - type: Percent
         value: 50
         periodSeconds: 60
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: worker-config
-  namespace: avalanche
-data:
-  consensus.yaml: |
-    worker:
-      type: consensus
-      max_workers: 10
-      task_timeout: "60s"
-      batch_size: 50
-      metrics_interval: "30s"
-    
-    consensus:
-      k: 20
-      alpha: 15
-      beta_virtuous: 20
-      beta_rogue: 30
-      max_outstanding_items: 1000
-    
-    queue:
-      task_queue: "consensus_tasks"
-      result_queue: "consensus_results"
-      dead_letter_queue: "consensus_failed"
-      max_retries: 3
-      retry_delay: "5s"
-    
-    logging:
-      level: info
-      format: json
-      file: "/var/log/consensus-worker.log"
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: consensus-worker-pdb
-  namespace: avalanche
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: consensus-worker
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: consensus-worker-monitor
-  namespace: avalanche
-  labels:
-    app: consensus-worker
-spec:
-  selector:
-    matchLabels:
-      app: consensus-worker
-  endpoints:
-  - port: metrics
-    interval: 30s
-    path: /metrics 
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15 

@@ -111,6 +111,9 @@ generate_complete_dockerfiles() {
     for service in "${SERVICES[@]}"; do
         local service_dir="$MICROSERVICES_DIR/services/$service"
         
+        # Create deployments directory if it doesn't exist
+        mkdir -p "$service_dir/deployments"
+        
         # Generate more complete Dockerfile
         cat > "$service_dir/deployments/Dockerfile" << EOF
 # Multi-stage build for $service

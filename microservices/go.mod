@@ -1,11 +1,9 @@
 module microservices
 
-go 1.23.9
-
-toolchain go1.24.3
+go 1.21
 
 require (
-	github.com/ava-labs/avalanchego v1.13.2
+	github.com/ava-labs/avalanchego v1.10.15
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gorilla/mux v1.8.1
@@ -18,6 +16,7 @@ require (
 	github.com/bytedance/sonic v1.9.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
@@ -36,16 +35,20 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.11.1 // indirect
+	github.com/stretchr/testify v1.8.3 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
+	go.uber.org/mock v0.2.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
-	golang.org/x/crypto v0.36.0 // indirect
-	golang.org/x/net v0.38.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
-	google.golang.org/protobuf v1.35.2 // indirect
+	golang.org/x/crypto v0.16.0 // indirect
+	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
+	golang.org/x/net v0.19.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

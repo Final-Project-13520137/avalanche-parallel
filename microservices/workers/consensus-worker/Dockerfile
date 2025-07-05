@@ -1,4 +1,4 @@
-# Multi-stage build for dag-state-worker
+# Multi-stage build for consensus-worker
 FROM golang:1.21-alpine AS builder
 
 # Install dependencies
@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build the worker
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o dag-state-worker ./workers/dag-state-worker/cmd
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o consensus-worker ./workers/consensus-worker/cmd
 
 # Final stage
 FROM alpine:latest
@@ -25,7 +25,7 @@ RUN apk --no-cache add ca-certificates curl
 WORKDIR /root/
 
 # Copy the binary from builder stage
-COPY --from=builder /app/dag-state-worker .
+COPY --from=builder /app/consensus-worker .
 
 # Create log directory
 RUN mkdir -p /var/log
@@ -38,4 +38,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # Run the worker
-CMD ["./dag-state-worker"]
+CMD ["./consensus-worker"]
