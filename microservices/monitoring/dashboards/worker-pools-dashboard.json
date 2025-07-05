@@ -1,0 +1,83 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Avalanche Worker Pools Dashboard",
+    "tags": ["avalanche", "workers", "microservices"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Worker Pool Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=~\".*-workers\"}",
+            "legendFormat": "{{job}} - {{instance}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Queue Depths",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "redis_queue_depth{queue=\"consensus_tasks\"}",
+            "legendFormat": "Consensus Tasks"
+          },
+          {
+            "expr": "redis_queue_depth{queue=\"validation_tasks\"}",
+            "legendFormat": "Validation Tasks"
+          },
+          {
+            "expr": "redis_queue_depth{queue=\"dag_state_tasks\"}",
+            "legendFormat": "DAG/State Tasks"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Worker Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(worker_tasks_processed_total[5m])",
+            "legendFormat": "{{worker_type}} - {{instance}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "CPU Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total[5m]) * 100",
+            "legendFormat": "{{instance}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 5,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes",
+            "legendFormat": "{{instance}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  }
+} 

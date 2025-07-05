@@ -1,0 +1,59 @@
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build all workers
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o consensus-worker ./workers/consensus-worker/cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o validator-worker ./workers/validator-worker/cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o dag-state-worker ./workers/dag-state-worker/cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o api-gateway ./api-gateway/cmd/main.go
+
+# Final stage - consensus worker
+FROM alpine:latest AS consensus-worker
+
+RUN apk --no-cache add ca-certificates curl
+WORKDIR /root/
+COPY --from=builder /app/consensus-worker .
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+CMD ["./consensus-worker"]
+
+# Final stage - validator worker
+FROM alpine:latest AS validator-worker
+
+RUN apk --no-cache add ca-certificates curl
+WORKDIR /root/
+COPY --from=builder /app/validator-worker .
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8081/health || exit 1
+CMD ["./validator-worker"]
+
+# Final stage - dag-state worker
+FROM alpine:latest AS dag-state-worker
+
+RUN apk --no-cache add ca-certificates curl
+WORKDIR /root/
+COPY --from=builder /app/dag-state-worker .
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8082/health || exit 1
+CMD ["./dag-state-worker"]
+
+# Final stage - api gateway
+FROM alpine:latest AS api-gateway
+
+RUN apk --no-cache add ca-certificates curl
+WORKDIR /root/
+COPY --from=builder /app/api-gateway .
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:9750/health || exit 1
+CMD ["./api-gateway"] 
