@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
       - name: worker
-        image: avalanche-parallel/worker:latest
+        image: your-registry.io/avalanche-worker:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9652

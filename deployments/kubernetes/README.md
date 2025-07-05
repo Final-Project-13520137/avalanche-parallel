@@ -41,17 +41,61 @@ git clone https://github.com/Final-Project-13520137/avalanche-parallel-dag.git
 cd avalanche-parallel-dag/deployments/kubernetes
 ```
 
-### 2. Deploy dengan Script
-
-**Linux/macOS:**
-```bash
-chmod +x deploy.sh
-./deploy.sh --build --registry your-registry.io
-```
+### 2. Setup Kubernetes Cluster (if needed)
 
 **Windows (PowerShell):**
 ```powershell
-.\deploy.ps1 -Build -Registry your-registry.io
+# Setup Docker Desktop Kubernetes
+.\setup-k8s.ps1 -Provider docker-desktop
+
+# Or setup kind cluster
+.\setup-k8s.ps1 -Provider kind
+
+# Or setup minikube
+.\setup-k8s.ps1 -Provider minikube
+```
+
+**Linux/WSL/Ubuntu:**
+```bash
+# Make script executable
+chmod +x setup-k8s.sh
+
+# Setup Docker Desktop Kubernetes
+./setup-k8s.sh --provider docker-desktop
+
+# Or setup kind cluster
+./setup-k8s.sh --provider kind
+
+# Or setup minikube
+./setup-k8s.sh --provider minikube
+```
+
+### 3. Deploy dengan Script
+
+**Kubernetes Deployment:**
+
+*Windows (PowerShell):*
+```powershell
+.\deploy.ps1 -Build -Registry localhost:5000
+```
+
+*Linux/WSL/Ubuntu:*
+```bash
+chmod +x deploy.sh
+./deploy.sh --build --registry localhost:5000
+```
+
+**Docker Compose Alternative (Recommended for local testing):**
+
+*Windows (PowerShell):*
+```powershell
+.\deploy-docker.ps1 -Build -Workers 3
+```
+
+*Linux/WSL/Ubuntu:*
+```bash
+chmod +x deploy-docker.sh
+./deploy-docker.sh --build --workers 3
 ```
 
 ### 3. Deploy Manual

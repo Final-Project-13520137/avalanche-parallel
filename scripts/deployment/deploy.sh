@@ -31,14 +31,34 @@ check_prerequisites() {
     # Check kubectl
     if ! command -v kubectl &> /dev/null; then
         print_msg $RED "kubectl is not installed. Please install kubectl first."
+        print_msg $YELLOW "Install kubectl:"
+        print_msg $YELLOW "  curl -LO \"https://dl.k8s.io/release/\$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl\""
+        print_msg $YELLOW "  chmod +x kubectl && sudo mv kubectl /usr/local/bin/"
         exit 1
     fi
     
     # Check docker
     if ! command -v docker &> /dev/null && [ "$BUILD_IMAGES" = true ]; then
         print_msg $RED "Docker is not installed. Please install Docker first."
+        print_msg $YELLOW "Install Docker:"
+        print_msg $YELLOW "  curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh"
         exit 1
     fi
+    
+    # Check Kubernetes cluster connectivity
+    print_msg $YELLOW "Checking Kubernetes cluster connectivity..."
+    if ! kubectl cluster-info --request-timeout=5s >/dev/null 2>&1; then
+        print_msg $RED "No Kubernetes cluster found or cluster is not accessible."
+        print_msg $YELLOW "Please run one of the following to setup a cluster:"
+        print_msg $YELLOW "  ./setup-k8s.sh --provider docker-desktop"
+        print_msg $YELLOW "  ./setup-k8s.sh --provider kind"
+        print_msg $YELLOW "  ./setup-k8s.sh --provider minikube"
+        print_msg $YELLOW ""
+        print_msg $YELLOW "Or if you want to deploy only Docker images without Kubernetes:"
+        print_msg $YELLOW "  ./deploy-docker.sh --build --workers 3"
+        exit 1
+    fi
+    print_msg $GREEN "Kubernetes cluster is accessible!"
     
     # Check kustomize (optional)
     if ! command -v kustomize &> /dev/null; then
@@ -52,6 +72,13 @@ check_prerequisites() {
 build_images() {
     if [ "$BUILD_IMAGES" = true ]; then
         print_msg $YELLOW "Building Docker images..."
+        
+        # Ensure go.mod.docker exists
+        if [ ! -f "../../go.mod.docker" ]; then
+            print_msg $RED "go.mod.docker not found. Creating it..."
+            # Create go.mod.docker from go.mod by removing incompatible lines
+            sed 's/go 1\.23\.9/go 1.21/' ../../go.mod | grep -v "toolchain" > ../../go.mod.docker
+        fi
         
         # Build main node image
         docker build -f ../docker/Dockerfile.main-node -t ${REGISTRY}/avalanche-main-node:${TAG} ../..
@@ -94,14 +121,144 @@ deploy() {
     # Create namespace if it doesn't exist
     kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
     
-    # Apply configurations using kustomize
+    # Apply configurations using kustomize with validation disabled for local clusters
+    print_msg $YELLOW "Applying Kubernetes configurations..."
+    
+    # Try kustomize first
     if command -v kustomize &> /dev/null; then
-        kustomize build . | kubectl apply -f -
+        if ! kustomize build . | kubectl apply -f - --validate=false; then
+            print_msg $YELLOW "Kustomize failed, trying individual file deployment..."
+            deploy_individual_files
+        fi
     else
-        kubectl apply -k .
+        if ! kubectl apply -k . --validate=false; then
+            print_msg $YELLOW "Kubectl kustomize failed, trying individual file deployment..."
+            deploy_individual_files
+        fi
     fi
     
     print_msg $GREEN "Deployment completed!"
+    
+    # Install metrics server for HPA to work
+    install_metrics_server
+}
+
+# Function to deploy individual files as fallback
+deploy_individual_files() {
+    local files=(
+        "00-namespace.yaml"
+        "01-message-queue.yaml"
+        "02-main-node.yaml"
+        "03-worker-deployment.yaml"
+        "04-api-gateway.yaml"
+        "05-monitoring.yaml"
+        "06-grafana-dashboard.yaml"
+    )
+    
+    for file in "${files[@]}"; do
+        if [ -f "$file" ]; then
+            print_msg $YELLOW "Applying $file..."
+            kubectl apply -f "$file" --validate=false
+        else
+            print_msg $YELLOW "Warning: $file not found, skipping..."
+        fi
+    done
+}
+
+# Function to install metrics server if needed
+install_metrics_server() {
+    print_msg $YELLOW "Checking metrics server..."
+    
+    # Check if metrics server is already running
+    if kubectl get deployment metrics-server -n kube-system >/dev/null 2>&1; then
+        print_msg $GREEN "Metrics server already installed"
+        return 0
+    fi
+    
+    print_msg $YELLOW "Installing metrics server..."
+    
+    # Try to use local manifest first
+    if [ -f "metrics-server.yaml" ]; then
+        print_msg $YELLOW "Using local metrics-server manifest..."
+        kubectl apply -f metrics-server.yaml --validate=false
+    else
+        print_msg $YELLOW "Local manifest not found, creating one..."
+        
+        # Create temporary metrics server manifest
+        cat > temp-metrics-server.yaml << 'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    k8s-app: metrics-server
+  name: metrics-server
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: metrics-server
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        k8s-app: metrics-server
+    spec:
+      containers:
+      - args:
+        - --cert-dir=/tmp
+        - --secure-port=4443
+        - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+        - --kubelet-use-node-status-port
+        - --metric-resolution=15s
+        - --kubelet-insecure-tls
+        image: registry.k8s.io/metrics-server/metrics-server:v0.7.0
+        imagePullPolicy: IfNotPresent
+        name: metrics-server
+        ports:
+        - containerPort: 4443
+          name: https
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp-dir
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: system-cluster-critical
+      serviceAccountName: metrics-server
+      volumes:
+      - emptyDir: {}
+        name: tmp-dir
+EOF
+        
+        # Apply the complete metrics server from remote
+        kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml --validate=false
+        
+        # Wait for deployment to exist
+        sleep 10
+        
+        # Patch the deployment with correct image and args
+        kubectl patch deployment metrics-server -n kube-system --type='merge' -p='{"spec":{"template":{"spec":{"containers":[{"name":"metrics-server","args":["--cert-dir=/tmp","--secure-port=4443","--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname","--kubelet-use-node-status-port","--metric-resolution=15s","--kubelet-insecure-tls"],"image":"registry.k8s.io/metrics-server/metrics-server:v0.7.0"}]}}}}' --validate=false
+        
+        # Clean up temp file
+        rm -f temp-metrics-server.yaml
+    fi
+    
+    # Wait for metrics server to be ready
+    print_msg $YELLOW "Waiting for metrics server to be ready..."
+    kubectl wait --for=condition=available --timeout=300s deployment/metrics-server -n kube-system || true
+    
+    print_msg $GREEN "Metrics server installation completed"
 }
 
 # Function to wait for deployments to be ready

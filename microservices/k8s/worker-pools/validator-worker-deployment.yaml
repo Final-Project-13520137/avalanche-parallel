@@ -1,0 +1,174 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: validator-worker-pool
+  namespace: avalanche
+  labels:
+    app: validator-worker
+    pool: validator
+    component: worker
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: validator-worker
+  template:
+    metadata:
+      labels:
+        app: validator-worker
+        pool: validator
+        component: worker
+    spec:
+      containers:
+      - name: validator-worker
+        image: avalanche-validator-worker:latest
+        ports:
+        - containerPort: 8081
+          name: metrics
+        env:
+        - name: WORKER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: avalanche-config
+              key: REDIS_URL
+        - name: TASK_QUEUE
+          value: "validation_tasks"
+        - name: RESULT_QUEUE
+          value: "validation_results"
+        - name: MAX_WORKERS
+          value: "15"
+        - name: LOG_LEVEL
+          value: "info"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: worker-config
+          mountPath: /etc/worker
+          readOnly: true
+      volumes:
+      - name: worker-config
+        configMap:
+          name: worker-config
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: validator-worker-service
+  namespace: avalanche
+  labels:
+    app: validator-worker
+spec:
+  selector:
+    app: validator-worker
+  ports:
+  - name: metrics
+    port: 8081
+    targetPort: 8081
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: validator-worker-hpa
+  namespace: avalanche
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: validator-worker-pool
+  minReplicas: 3
+  maxReplicas: 15
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: External
+    external:
+      metric:
+        name: redis_queue_depth
+        selector:
+          matchLabels:
+            queue: validation_tasks
+      target:
+        type: AverageValue
+        averageValue: "200"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+      - type: Percent
+        value: 200
+        periodSeconds: 15
+      - type: Pods
+        value: 3
+        periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 180
+      policies:
+      - type: Percent
+        value: 25
+        periodSeconds: 60
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: validator-worker-pdb
+  namespace: avalanche
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: validator-worker
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: validator-worker-monitor
+  namespace: avalanche
+  labels:
+    app: validator-worker
+spec:
+  selector:
+    matchLabels:
+      app: validator-worker
+  endpoints:
+  - port: metrics
+    interval: 15s
+    path: /metrics 

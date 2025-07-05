@@ -36,7 +36,7 @@ spec:
     spec:
       containers:
       - name: main-node
-        image: avalanche-parallel/main-node:latest
+        image: your-registry.io/avalanche-main-node:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9650

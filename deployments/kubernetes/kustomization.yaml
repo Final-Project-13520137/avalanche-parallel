@@ -11,16 +11,18 @@ resources:
   - 04-api-gateway.yaml
   - 05-monitoring.yaml
   - 06-grafana-dashboard.yaml
+  - metrics-server.yaml
 
 images:
-  - name: avalanche-parallel/main-node
+  - name: localhost:5000/avalanche-main-node
+    newName: your-registry.io/avalanche-main-node
     newTag: latest
-  - name: avalanche-parallel/worker
+  - name: localhost:5000/avalanche-worker
+    newName: your-registry.io/avalanche-worker
     newTag: latest
 
 configMapGenerator:
-  - name: avalanche-config
-    behavior: merge
+  - name: avalanche-config-extra
     literals:
       - network=local
       - log_level=info

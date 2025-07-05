@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.19-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache build-base git curl bash
@@ -7,12 +7,11 @@ RUN apk add --no-cache build-base git curl bash
 # Set working directory
 WORKDIR /build
 
-# Copy go mod files
-COPY go.mod go.sum ./
-RUN go mod download
-
 # Copy source code
 COPY . .
+
+# Download dependencies
+RUN go mod download
 
 # Build the worker binary
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o avalanche-worker ./cmd/worker
