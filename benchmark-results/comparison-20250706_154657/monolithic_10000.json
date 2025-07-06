@@ -1,0 +1,9 @@
+{
+    "transaction_count":  10000,
+    "duration":  0.0444755,
+    "timestamp":  "2025-07-06T08:48:28Z",
+    "processed":  {
+                      "total_processed":  null
+                  },
+    "throughput_tps":  0
+}
