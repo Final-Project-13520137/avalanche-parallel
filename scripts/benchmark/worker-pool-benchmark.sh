@@ -181,19 +181,22 @@ generate_worker_load() {
     
     # Generate different types of tasks
     print_step "Generating consensus tasks..."
-    generate_consensus_tasks $((tx_count / 3)) "$redis_pod" &
-    CONSENSUS_PID=$!
+    if ! generate_consensus_tasks $((tx_count / 3)) "$redis_pod"; then
+        print_error "Failed to generate consensus tasks"
+        return 1
+    fi
     
     print_step "Generating validation tasks..."
-    generate_validation_tasks $((tx_count / 2)) "$redis_pod" &
-    VALIDATION_PID=$!
+    if ! generate_validation_tasks $((tx_count / 2)) "$redis_pod"; then
+        print_error "Failed to generate validation tasks"
+        return 1
+    fi
     
     print_step "Generating DAG/State tasks..."
-    generate_dag_state_tasks $((tx_count / 6)) "$redis_pod" &
-    DAG_STATE_PID=$!
-    
-    # Wait for all load generation to complete
-    wait $CONSENSUS_PID $VALIDATION_PID $DAG_STATE_PID
+    if ! generate_dag_state_tasks $((tx_count / 6)) "$redis_pod"; then
+        print_error "Failed to generate DAG/State tasks"
+        return 1
+    fi
     
     local end_time=$(date +%s.%N)
     local duration=$(echo "$end_time - $start_time" | bc -l)
@@ -254,9 +257,15 @@ generate_consensus_tasks() {
         if [ $((i % 100)) -eq 0 ] || [ $i -eq $count ]; then
             print_step "Sending batch of consensus tasks ($i/$count)..."
             # Copy file to pod
-            kubectl cp "$temp_file" "avalanche/$redis_pod:/tmp/tasks.txt" > /dev/null 2>&1
+            if ! kubectl cp "$temp_file" "avalanche/$redis_pod:/tmp/tasks.txt" > /dev/null 2>&1; then
+                print_error "Failed to copy tasks to Redis pod"
+                return 1
+            fi
             # Load tasks into Redis
-            kubectl exec -n avalanche "$redis_pod" -- sh -c 'while read -r task; do redis-cli LPUSH consensus_tasks "$task" > /dev/null; done < /tmp/tasks.txt' > /dev/null 2>&1
+            if ! kubectl exec -n avalanche "$redis_pod" -- sh -c 'while read -r task; do redis-cli LPUSH consensus_tasks "$task" > /dev/null; done < /tmp/tasks.txt' > /dev/null 2>&1; then
+                print_error "Failed to load tasks into Redis"
+                return 1
+            fi
             # Clear file for next batch
             > "$temp_file"
             sleep 0.1
@@ -301,9 +310,15 @@ generate_validation_tasks() {
         if [ $((i % 200)) -eq 0 ] || [ $i -eq $count ]; then
             print_step "Sending batch of validation tasks ($i/$count)..."
             # Copy file to pod
-            kubectl cp "$temp_file" "avalanche/$redis_pod:/tmp/tasks.txt" > /dev/null 2>&1
+            if ! kubectl cp "$temp_file" "avalanche/$redis_pod:/tmp/tasks.txt" > /dev/null 2>&1; then
+                print_error "Failed to copy tasks to Redis pod"
+                return 1
+            fi
             # Load tasks into Redis
-            kubectl exec -n avalanche "$redis_pod" -- sh -c 'while read -r task; do redis-cli LPUSH validation_tasks "$task" > /dev/null; done < /tmp/tasks.txt' > /dev/null 2>&1
+            if ! kubectl exec -n avalanche "$redis_pod" -- sh -c 'while read -r task; do redis-cli LPUSH validation_tasks "$task" > /dev/null; done < /tmp/tasks.txt' > /dev/null 2>&1; then
+                print_error "Failed to load tasks into Redis"
+                return 1
+            fi
             # Clear file for next batch
             > "$temp_file"
             sleep 0.05
@@ -348,9 +363,15 @@ generate_dag_state_tasks() {
         if [ $((i % 50)) -eq 0 ] || [ $i -eq $count ]; then
             print_step "Sending batch of DAG/State tasks ($i/$count)..."
             # Copy file to pod
-            kubectl cp "$temp_file" "avalanche/$redis_pod:/tmp/tasks.txt" > /dev/null 2>&1
+            if ! kubectl cp "$temp_file" "avalanche/$redis_pod:/tmp/tasks.txt" > /dev/null 2>&1; then
+                print_error "Failed to copy tasks to Redis pod"
+                return 1
+            fi
             # Load tasks into Redis
-            kubectl exec -n avalanche "$redis_pod" -- sh -c 'while read -r task; do redis-cli LPUSH dag_state_tasks "$task" > /dev/null; done < /tmp/tasks.txt' > /dev/null 2>&1
+            if ! kubectl exec -n avalanche "$redis_pod" -- sh -c 'while read -r task; do redis-cli LPUSH dag_state_tasks "$task" > /dev/null; done < /tmp/tasks.txt' > /dev/null 2>&1; then
+                print_error "Failed to load tasks into Redis"
+                return 1
+            fi
             # Clear file for next batch
             > "$temp_file"
             sleep 0.2
