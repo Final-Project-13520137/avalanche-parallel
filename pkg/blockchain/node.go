@@ -12,49 +12,54 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 )
 
 const (
 	// ConsensusInterval defines how often the consensus process runs
 	ConsensusInterval = 1 * time.Second
-	
+
 	// DefaultAPIPort is the default port for the HTTP API
 	DefaultAPIPort = 8545
 )
 
 // NodeConfig contains configuration for a blockchain node
 type NodeConfig struct {
-	MaxParallelism int    // Maximum number of parallel processors
-	APIPort        int    // HTTP API port
+	MaxParallelism int // Maximum number of parallel processors
+	APIPort        int // HTTP API port
 }
 
 // Node represents a blockchain node with HTTP API
 type Node struct {
-	lock       sync.RWMutex
-	logger     logging.Logger
-	blockchain *Blockchain
-	server     *http.Server
-	config     NodeConfig
-	running    bool
+	lock              sync.RWMutex
+	logger            *zap.Logger
+	blockchain        *Blockchain
+	server            *http.Server
+	config            NodeConfig
+	running           bool
+	shutdownCtx       context.Context
 	shutdownCtxCancel context.CancelFunc
 }
 
 // NewNode creates a new blockchain node
-func NewNode(logger logging.Logger, config NodeConfig) (*Node, error) {
+func NewNode(logger *zap.Logger, config NodeConfig) (*Node, error) {
 	// Create blockchain
 	blockchain, err := NewBlockchain(logger, config.MaxParallelism)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create blockchain: %w", err)
 	}
 
+	// Create shutdown context
+	shutdownCtx, shutdownCtxCancel := context.WithCancel(context.Background())
+
 	// Create node
 	node := &Node{
-		logger:     logger,
-		blockchain: blockchain,
-		config:     config,
-		running:    false,
+		logger:            logger,
+		blockchain:        blockchain,
+		config:            config,
+		running:           false,
+		shutdownCtx:       shutdownCtx,
+		shutdownCtxCancel: shutdownCtxCancel,
 	}
 
 	return node, nil
@@ -70,9 +75,7 @@ func (n *Node) Start() error {
 	}
 
 	// Start blockchain consensus
-	ctx, cancel := context.WithCancel(context.Background())
-	go n.blockchain.RunConsensus(ctx, 500*time.Millisecond)
-	n.shutdownCtxCancel = cancel  // Store the cancel function for later use
+	go n.blockchain.RunConsensus(n.shutdownCtx, 500*time.Millisecond)
 
 	// Setup HTTP API server
 	mux := http.NewServeMux()
@@ -110,10 +113,13 @@ func (n *Node) Stop() error {
 		return fmt.Errorf("node not running")
 	}
 
+	// Cancel shutdown context
+	n.shutdownCtxCancel()
+
 	// Shutdown server
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	if err := n.server.Shutdown(ctx); err != nil {
 		return fmt.Errorf("server shutdown error: %w", err)
 	}
@@ -264,6 +270,13 @@ func (n *Node) handleCreateBlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get block height
+	height, err := block.Height()
+	if err != nil {
+		http.Error(w, "Failed to get block height: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	// Return block ID
 	response := struct {
 		ID     string   `json:"id"`
@@ -271,7 +284,7 @@ func (n *Node) handleCreateBlock(w http.ResponseWriter, r *http.Request) {
 		TxIDs  []string `json:"txIDs"`
 	}{
 		ID:     block.ID().String(),
-		Height: block.Height_,
+		Height: height,
 	}
 
 	// Convert transaction IDs to strings
@@ -312,6 +325,13 @@ func (n *Node) handleGetBlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get block height
+	height, err := block.Height()
+	if err != nil {
+		http.Error(w, "Failed to get block height: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	// Convert parent IDs to strings
 	parentIDs := make([]string, 0, len(block.ParentIDs))
 	for _, parentID := range block.ParentIDs {
@@ -334,7 +354,7 @@ func (n *Node) handleGetBlock(w http.ResponseWriter, r *http.Request) {
 	}{
 		ID:        block.ID().String(),
 		ParentIDs: parentIDs,
-		Height:    block.Height_,
+		Height:    height,
 		Status:    block.Status().String(),
 		TxIDs:     txIDs,
 	}
@@ -379,12 +399,18 @@ func (n *Node) handleGetLatestBlocks(w http.ResponseWriter, r *http.Request) {
 	}, 0, len(latestBlocks))
 
 	for _, block := range latestBlocks {
+		height, err := block.Height()
+		if err != nil {
+			http.Error(w, "Failed to get block height: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		blocks = append(blocks, struct {
 			ID     string `json:"id"`
 			Height uint64 `json:"height"`
 		}{
 			ID:     block.ID().String(),
-			Height: block.Height_,
+			Height: height,
 		})
 	}
 
@@ -400,4 +426,4 @@ func (n *Node) handleGetLatestBlocks(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
-} 
+}

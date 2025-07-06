@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -28,7 +27,7 @@ var (
 		},
 		[]string{"worker_id", "task_type", "status"},
 	)
-	
+
 	processingDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "worker_processing_duration_seconds",
@@ -36,7 +35,7 @@ var (
 		},
 		[]string{"worker_id", "task_type"},
 	)
-	
+
 	queueDepth = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "worker_queue_depth",
@@ -257,12 +256,12 @@ func (w *Worker) getStats() map[string]interface{} {
 	queueLen := w.RedisClient.LLen(w.ctx, queueName).Val()
 
 	return map[string]interface{}{
-		"worker_id":    w.ID,
-		"worker_type":  w.WorkerType,
-		"queue_name":   queueName,
-		"queue_depth":  queueLen,
-		"status":       "active",
-		"uptime":       time.Now().Unix(),
+		"worker_id":   w.ID,
+		"worker_type": w.WorkerType,
+		"queue_name":  queueName,
+		"queue_depth": queueLen,
+		"status":      "active",
+		"uptime":      time.Now().Unix(),
 	}
 }
 
@@ -271,4 +270,4 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
-} 
+}

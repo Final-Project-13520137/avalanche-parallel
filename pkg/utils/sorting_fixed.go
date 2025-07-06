@@ -1,7 +1,7 @@
 // Copyright (C) 2019-2022, Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
-package main
+package utils
 
 import (
 	"bytes"
@@ -11,9 +11,9 @@ import (
 )
 
 // SortBytes sorts a slice of byte slices
-func SortBytes(bytes [][]byte) {
-	sort.Slice(bytes, func(i, j int) bool {
-		return bytes.Compare(bytes[i], bytes[j]) < 0
+func SortBytes(b [][]byte) {
+	sort.Slice(b, func(i, j int) bool {
+		return bytes.Compare(b[i], b[j]) < 0
 	})
 }
 
@@ -63,9 +63,9 @@ func IsSortedByHash[T ~[]byte](s []T) bool {
 }
 
 // Sort2DBytes sorts a 2D byte slice by the first index's lexicographical order
-func Sort2DBytes(bytes [][]byte) {
-	sort.Slice(bytes, func(i, j int) bool {
-		return bytes.Compare(bytes[i], bytes[j]) < 0
+func Sort2DBytes(b [][]byte) {
+	sort.Slice(b, func(i, j int) bool {
+		return bytes.Compare(b[i], b[j]) < 0
 	})
 }
 
@@ -231,4 +231,4 @@ func IsSortedAndUniqueByHash[T ~[]byte](s []T) bool {
 		}
 	}
 	return true
-} 
+}

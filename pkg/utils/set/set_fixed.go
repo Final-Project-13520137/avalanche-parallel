@@ -7,9 +7,6 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/ava-labs/avalanchego/utils"
-	"github.com/ava-labs/avalanchego/utils/maps"
-	"github.com/ava-labs/avalanchego/utils/slices"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	avajson "github.com/ava-labs/avalanchego/utils/json"
@@ -330,4 +327,4 @@ func (s *SetJSON[T]) MarshalJSON() ([]byte, error) {
 	errs.Add(err)
 
 	return jsonBuf.Bytes(), errs.Err
-} 
+}

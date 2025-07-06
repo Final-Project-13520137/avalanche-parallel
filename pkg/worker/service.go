@@ -9,8 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 )
 
 // Task represents a unit of work to be processed
@@ -37,11 +36,11 @@ type Worker interface {
 // DefaultWorker implements the Worker interface
 type DefaultWorker struct {
 	id     string
-	logger logging.Logger
+	logger *zap.Logger
 }
 
 // NewDefaultWorker creates a new worker instance
-func NewDefaultWorker(id string, logger logging.Logger) *DefaultWorker {
+func NewDefaultWorker(id string, logger *zap.Logger) *DefaultWorker {
 	return &DefaultWorker{
 		id:     id,
 		logger: logger,
@@ -50,19 +49,17 @@ func NewDefaultWorker(id string, logger logging.Logger) *DefaultWorker {
 
 // ProcessTask handles the processing of a task
 func (w *DefaultWorker) ProcessTask(ctx context.Context, task Task) (Result, error) {
-	startTime := time.Now()
-	
 	// Process the task (implement the actual processing logic)
 	// This is just a placeholder
 	time.Sleep(100 * time.Millisecond)
-	
+
 	result := Result{
 		TaskID:    task.ID,
 		Output:    []byte(fmt.Sprintf("Processed by worker %s", w.id)),
 		StartTime: task.StartTime,
 		EndTime:   time.Now(),
 	}
-	
+
 	return result, nil
 }
 
@@ -72,12 +69,12 @@ type WorkerPool struct {
 	workers  map[string]Worker
 	taskChan chan Task
 	results  map[string]Result
-	logger   logging.Logger
+	logger   *zap.Logger
 	wg       sync.WaitGroup
 }
 
 // NewWorkerPool creates a new worker pool
-func NewWorkerPool(logger logging.Logger, capacity int) *WorkerPool {
+func NewWorkerPool(logger *zap.Logger, capacity int) *WorkerPool {
 	return &WorkerPool{
 		workers:  make(map[string]Worker),
 		taskChan: make(chan Task, capacity),
@@ -90,7 +87,7 @@ func NewWorkerPool(logger logging.Logger, capacity int) *WorkerPool {
 func (wp *WorkerPool) AddWorker(id string, worker Worker) {
 	wp.lock.Lock()
 	defer wp.lock.Unlock()
-	
+
 	wp.workers[id] = worker
 }
 
@@ -98,7 +95,7 @@ func (wp *WorkerPool) AddWorker(id string, worker Worker) {
 func (wp *WorkerPool) RemoveWorker(id string) {
 	wp.lock.Lock()
 	defer wp.lock.Unlock()
-	
+
 	delete(wp.workers, id)
 }
 
@@ -106,13 +103,13 @@ func (wp *WorkerPool) RemoveWorker(id string) {
 func (wp *WorkerPool) GetWorkers() map[string]Worker {
 	wp.lock.RLock()
 	defer wp.lock.RUnlock()
-	
+
 	// Create a copy to avoid race conditions
 	workersCopy := make(map[string]Worker, len(wp.workers))
 	for id, worker := range wp.workers {
 		workersCopy[id] = worker
 	}
-	
+
 	return workersCopy
 }
 
@@ -134,7 +131,7 @@ func (wp *WorkerPool) Start(ctx context.Context, numWorkers int) {
 					if !ok {
 						return
 					}
-					
+
 					// Find an available worker
 					wp.lock.RLock()
 					workers := make([]Worker, 0, len(wp.workers))
@@ -142,28 +139,30 @@ func (wp *WorkerPool) Start(ctx context.Context, numWorkers int) {
 						workers = append(workers, w)
 					}
 					wp.lock.RUnlock()
-					
+
 					if len(workers) == 0 {
-						wp.logger.Warn("No workers available to process task %s", task.ID)
+						wp.logger.Warn("No workers available to process task", zap.String("taskID", task.ID))
 						continue
 					}
-					
+
 					// Use a simple round-robin approach for now
 					// In a real implementation, we would use a better scheduling algorithm
 					worker := workers[task.ID[0]%byte(len(workers))]
-					
+
 					// Process the task
 					result, err := worker.ProcessTask(ctx, task)
 					if err != nil {
-						wp.logger.Error("Failed to process task %s: %s", task.ID, err)
+						wp.logger.Error("Failed to process task",
+							zap.String("taskID", task.ID),
+							zap.Error(err))
 						result.Error = err
 					}
-					
+
 					// Store the result
 					wp.lock.Lock()
 					wp.results[task.ID] = result
 					wp.lock.Unlock()
-					
+
 				case <-ctx.Done():
 					return
 				}
@@ -182,7 +181,7 @@ func (wp *WorkerPool) Stop() {
 func (wp *WorkerPool) GetResult(taskID string) (Result, bool) {
 	wp.lock.RLock()
 	defer wp.lock.RUnlock()
-	
+
 	result, found := wp.results[taskID]
 	return result, found
-} 
+}

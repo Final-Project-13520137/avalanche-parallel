@@ -10,70 +10,24 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
 // Mock logger for testing
-type testLogger struct{}
-
-func (l *testLogger) Fatal(msg string, fields ...zap.Field) {}
-func (l *testLogger) Error(msg string, fields ...zap.Field) {}
-func (l *testLogger) Warn(msg string, fields ...zap.Field)  {}
-func (l *testLogger) Info(msg string, fields ...zap.Field)  {}
-func (l *testLogger) Trace(msg string, fields ...zap.Field) {}
-func (l *testLogger) Debug(msg string, fields ...zap.Field) {}
-func (l *testLogger) Verbo(msg string, fields ...zap.Field) {}
-
-// Implement io.Writer interface
-func (l *testLogger) Write(p []byte) (n int, err error) {
-	return len(p), nil
+type testLogger struct {
+	*zap.Logger
 }
 
-// Implement the remaining methods from the Logger interface
-func (l *testLogger) With(fields ...zap.Field) logging.Logger {
-	return l
+func newTestLogger() *testLogger {
+	logger, _ := zap.NewDevelopment()
+	return &testLogger{Logger: logger}
 }
-
-func (l *testLogger) WithOptions(opts ...zap.Option) logging.Logger {
-	return l
-}
-
-func (l *testLogger) SetLevel(level logging.Level) {}
-
-func (l *testLogger) Enabled(lvl logging.Level) bool {
-	return true
-}
-
-func (l *testLogger) StopOnPanic() {}
-
-func (l *testLogger) RecoverAndPanic(f func()) {
-	defer func() {
-		if r := recover(); r != nil {
-			l.Fatal("panic", zap.Any("error", r))
-			panic(r)
-		}
-	}()
-	f()
-}
-
-func (l *testLogger) RecoverAndExit(f func(), exit func()) {
-	defer func() {
-		if r := recover(); r != nil {
-			l.Fatal("panic", zap.Any("error", r))
-			exit()
-		}
-	}()
-	f()
-}
-
-func (l *testLogger) Stop() {}
 
 func createTestBlockchain(t *testing.T) *Blockchain {
-	logger := &testLogger{}
-	bc, err := NewBlockchain(logger, 4)
+	logger := newTestLogger()
+	bc, err := NewBlockchain(logger.Logger, 4)
 	require.NoError(t, err)
 	require.NotNil(t, bc)
 	return bc
@@ -135,11 +89,11 @@ func TestCreateBlock(t *testing.T) {
 	parentIDs := []ids.ID{bc.genesisBlock.ID()}
 	block, err := bc.CreateBlock(parentIDs, 10)
 	assert.NoError(t, err)
-	
+
 	height, err := block.Height()
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), height)
-	
+
 	assert.Len(t, block.Transactions, 2)
 
 	// Verify transactions were removed from pool
@@ -242,14 +196,14 @@ func TestProcessPendingBlocks(t *testing.T) {
 
 func TestConcurrentTransactions(t *testing.T) {
 	bc := createTestBlockchain(t)
-	
+
 	// Number of concurrent transactions
 	numTxs := 100
-	
+
 	// Create and add transactions concurrently
 	var wg sync.WaitGroup
 	wg.Add(numTxs)
-	
+
 	for i := 0; i < numTxs; i++ {
 		go func(i int) {
 			defer wg.Done()
@@ -258,88 +212,88 @@ func TestConcurrentTransactions(t *testing.T) {
 			bc.AddTransaction(tx)
 		}(i)
 	}
-	
+
 	wg.Wait()
-	
+
 	// Verify that transactions were added (some may fail due to concurrency)
 	assert.NotEmpty(t, bc.txPool)
 }
 
 func TestMultipleBlockCreation(t *testing.T) {
 	bc := createTestBlockchain(t)
-	
+
 	// Create a chain of blocks
 	parentIDs := []ids.ID{bc.genesisBlock.ID()}
-	
+
 	for i := 0; i < 5; i++ {
 		// Add transactions
 		tx, _ := NewTransaction("alice", "bob", uint64(100+i), uint64(i))
 		tx.SignTransaction([]byte("key"))
 		bc.AddTransaction(tx)
-		
+
 		// Create block
 		block, err := bc.CreateBlock(parentIDs, 10)
 		assert.NoError(t, err)
-		
+
 		// Submit block
 		err = bc.SubmitBlock(block)
 		assert.NoError(t, err)
-		
+
 		// Process pending blocks
 		err = bc.ProcessPendingBlocks()
 		assert.NoError(t, err)
-		
+
 		// Update parent IDs for next block
 		parentIDs = []ids.ID{block.ID()}
 	}
-	
+
 	// Verify blockchain height
 	assert.Equal(t, uint64(5), bc.GetBlockchainHeight())
 }
 
 func TestRunConsensus(t *testing.T) {
 	bc := createTestBlockchain(t)
-	
+
 	// Start consensus process
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	
+
 	go bc.RunConsensus(ctx, 100*time.Millisecond)
-	
+
 	// Add transaction
 	tx, _ := NewTransaction("alice", "bob", 100, 1)
 	tx.SignTransaction([]byte("key"))
 	bc.AddTransaction(tx)
-	
+
 	// Create and submit block
 	parentIDs := []ids.ID{bc.genesisBlock.ID()}
 	block, _ := bc.CreateBlock(parentIDs, 10)
 	bc.SubmitBlock(block)
-	
+
 	// Wait a bit for consensus to run
 	time.Sleep(300 * time.Millisecond)
-	
+
 	// Cancel context to stop consensus
 	cancel()
 }
 
 func TestGetBlocksByHeight(t *testing.T) {
 	bc := createTestBlockchain(t)
-	
+
 	// Create blocks at different heights
 	parentIDs := []ids.ID{bc.genesisBlock.ID()}
-	
+
 	// Create 3 blocks at height 1
 	var blocks []*Block
 	for i := 0; i < 3; i++ {
 		tx, _ := NewTransaction("alice", "bob", uint64(100+i), uint64(i))
 		tx.SignTransaction([]byte("key"))
 		bc.AddTransaction(tx)
-		
+
 		block, _ := bc.CreateBlock(parentIDs, 1)
 		blocks = append(blocks, block)
 	}
-	
+
 	// Get blocks by height
 	heightBlocks := bc.GetBlocksByHeight(1)
 	assert.Len(t, heightBlocks, 3)
@@ -347,23 +301,23 @@ func TestGetBlocksByHeight(t *testing.T) {
 
 func TestGetLatestBlocks(t *testing.T) {
 	bc := createTestBlockchain(t)
-	
+
 	// Initially, genesis block should be the only latest block
 	latestBlocks := bc.GetLatestBlocks()
 	assert.Len(t, latestBlocks, 1)
 	assert.Equal(t, bc.genesisBlock.ID(), latestBlocks[0].ID())
-	
+
 	// Create a new block
 	tx, _ := NewTransaction("alice", "bob", 100, 1)
 	tx.SignTransaction([]byte("key"))
 	bc.AddTransaction(tx)
-	
+
 	parentIDs := []ids.ID{bc.genesisBlock.ID()}
 	block, _ := bc.CreateBlock(parentIDs, 1)
 	bc.SubmitBlock(block)
-	
+
 	// New block should be the latest block
 	latestBlocks = bc.GetLatestBlocks()
 	assert.Len(t, latestBlocks, 1)
 	assert.Equal(t, block.ID(), latestBlocks[0].ID())
-} 
+}

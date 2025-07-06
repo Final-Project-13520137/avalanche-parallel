@@ -6,42 +6,31 @@ package set
 import (
 	"bytes"
 	"encoding/json"
+	"math/rand"
 
+	"github.com/Final-Project-13520137/avalanche-parallel/pkg/utils/sampler"
 	"github.com/ava-labs/avalanchego/utils"
-	"github.com/ava-labs/avalanchego/utils/sampler"
-	"github.com/ava-labs/avalanchego/utils/slices"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
-
 	avajson "github.com/ava-labs/avalanchego/utils/json"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 )
 
-// SampleableSet is a set of elements that supports sampling.
+// SampleableSet is a set that can be sampled from
 type SampleableSet[T comparable] struct {
-	// indices maps the element in the set to the index that it appears in
-	// elements.
 	indices  map[T]int
 	elements []T
+	rand     *rand.Rand
 }
 
-// OfSampleable returns a Set initialized with [elts]
-func OfSampleable[T comparable](elts ...T) SampleableSet[T] {
-	s := NewSampleableSet[T](len(elts))
-	s.Add(elts...)
-	return s
-}
-
-// Return a new sampleable set with initial capacity [size].
+// NewSampleableSet returns a new sampleable set with initial capacity [size].
 // More or less than [size] elements can be added to this set.
-// Using NewSampleableSet() rather than SampleableSet[T]{} is just an
-// optimization that can be used if you know how many elements will be put in
-// this set.
-func NewSampleableSet[T comparable](size int) SampleableSet[T] {
+func NewSampleableSet[T comparable](size int) *SampleableSet[T] {
 	if size < 0 {
-		return SampleableSet[T]{}
+		size = 16 // Default minimum size
 	}
-	return SampleableSet[T]{
+	return &SampleableSet[T]{
 		indices:  make(map[T]int, size),
 		elements: make([]T, 0, size),
+		rand:     rand.New(rand.NewSource(1)), // Use deterministic source for testing
 	}
 }
 
@@ -55,7 +44,7 @@ func (s *SampleableSet[T]) Add(elements ...T) {
 }
 
 // Union adds all the elements from the provided set to this set.
-func (s *SampleableSet[T]) Union(set SampleableSet[T]) {
+func (s *SampleableSet[T]) Union(set *SampleableSet[T]) {
 	s.resize(2 * set.Len())
 	for _, e := range set.elements {
 		s.add(e)
@@ -63,20 +52,20 @@ func (s *SampleableSet[T]) Union(set SampleableSet[T]) {
 }
 
 // Difference removes all the elements in [set] from [s].
-func (s *SampleableSet[T]) Difference(set SampleableSet[T]) {
+func (s *SampleableSet[T]) Difference(set *SampleableSet[T]) {
 	for _, e := range set.elements {
 		s.remove(e)
 	}
 }
 
 // Contains returns true iff the set contains this element.
-func (s SampleableSet[T]) Contains(e T) bool {
+func (s *SampleableSet[T]) Contains(e T) bool {
 	_, contains := s.indices[e]
 	return contains
 }
 
 // Overlaps returns true if the intersection of the set is non-empty
-func (s SampleableSet[T]) Overlaps(big SampleableSet[T]) bool {
+func (s *SampleableSet[T]) Overlaps(big *SampleableSet[T]) bool {
 	small := s
 	if small.Len() > big.Len() {
 		small, big = big, small
@@ -91,7 +80,7 @@ func (s SampleableSet[T]) Overlaps(big SampleableSet[T]) bool {
 }
 
 // Len returns the number of elements in this set.
-func (s SampleableSet[_]) Len() int {
+func (s *SampleableSet[T]) Len() int {
 	return len(s.elements)
 }
 
@@ -110,12 +99,14 @@ func (s *SampleableSet[T]) Clear() {
 }
 
 // List converts this set into a list
-func (s SampleableSet[T]) List() []T {
-	return slices.Clone(s.elements)
+func (s *SampleableSet[T]) List() []T {
+	result := make([]T, len(s.elements))
+	copy(result, s.elements)
+	return result
 }
 
 // Equals returns true if the sets contain the same elements
-func (s SampleableSet[T]) Equals(other SampleableSet[T]) bool {
+func (s *SampleableSet[T]) Equals(other *SampleableSet[T]) bool {
 	if len(s.indices) != len(other.indices) {
 		return false
 	}
@@ -129,17 +120,22 @@ func (s SampleableSet[T]) Equals(other SampleableSet[T]) bool {
 
 // Sample returns a random sample of at most [numToSample] elements from the set.
 // If there are not enough elements in the set, all elements will be returned.
-func (s SampleableSet[T]) Sample(numToSample int) []T {
+func (s *SampleableSet[T]) Sample(numToSample int) []T {
 	if numToSample <= 0 {
 		return nil
 	}
 
-	uniform := sampler.NewUniform()
+	uniform := sampler.NewUniformReplacer(s.rand)
 	uniform.Initialize(uint64(len(s.elements)))
-	
-	// For Go 1.18 compatibility with Uniform Sample
-	indices := uniform.Sample(min(len(s.elements), numToSample))
-	
+
+	if numToSample > len(s.elements) {
+		numToSample = len(s.elements)
+	}
+	indices := make([]uint64, numToSample)
+	for i := range indices {
+		indices[i] = uniform.Sample()
+	}
+
 	elements := make([]T, len(indices))
 	for i, index := range indices {
 		elements[i] = s.elements[index]
@@ -149,7 +145,7 @@ func (s SampleableSet[T]) Sample(numToSample int) []T {
 
 // SampleableSetJSON is used for marshaling/unmarshaling SampleableSet
 type SampleableSetJSON[T comparable] struct {
-	SampleableSet[T]
+	*SampleableSet[T]
 }
 
 // UnmarshalJSON unmarshals the JSON representation of a sampleable set
@@ -162,7 +158,11 @@ func (s *SampleableSetJSON[T]) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &elements); err != nil {
 		return err
 	}
-	s.Clear()
+	if s.SampleableSet == nil {
+		s.SampleableSet = NewSampleableSet[T](len(elements))
+	} else {
+		s.Clear()
+	}
 	s.Add(elements...)
 	return nil
 }
@@ -211,10 +211,11 @@ func (s *SampleableSetJSON[T]) MarshalJSON() ([]byte, error) {
 
 func (s *SampleableSet[T]) resize(size int) {
 	if s.elements == nil {
-		if minSetSize > size {
-			size = minSetSize
+		if size < 16 { // Default minimum size
+			size = 16
 		}
 		s.indices = make(map[T]int, size)
+		s.elements = make([]T, 0, size)
 	}
 }
 
@@ -245,4 +246,4 @@ func (s *SampleableSet[T]) remove(e T) {
 	delete(s.indices, e)
 	s.elements[lastIndex] = utils.Zero[T]()
 	s.elements = s.elements[:lastIndex]
-} 
+}

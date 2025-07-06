@@ -45,4 +45,4 @@ func Compare[T Ordered](a, b T) int {
 		return 1
 	}
 	return 0
-} 
+}

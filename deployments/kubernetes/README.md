@@ -124,13 +124,42 @@ Worker nodes dikonfigurasi dengan Horizontal Pod Autoscaler (HPA) yang akan scal
 - **Queue Length**: Scale up jika message queue > 30 messages/pod
 
 ### Manual Scaling
+
+Untuk melakukan manual scaling, gunakan script yang telah disediakan:
+
+**Windows (PowerShell):**
+```powershell
+# Scale di environment Docker
+.\scripts\scaling\scale-workers.ps1 -Workers 5 -Environment docker
+
+# Scale di environment Kubernetes
+.\scripts\scaling\scale-workers.ps1 -Workers 10 -Environment kubernetes
+```
+
+**Linux/WSL/Ubuntu:**
 ```bash
-# Scale to 10 workers
+# Make script executable
+chmod +x scripts/scaling/scale-workers.sh
+
+# Scale di environment Docker
+./scripts/scaling/scale-workers.sh --environment docker 5
+
+# Scale di environment Kubernetes
+./scripts/scaling/scale-workers.sh --environment kubernetes 10
+```
+
+Atau gunakan perintah Kubernetes/Docker langsung:
+
+```bash
+# Scale menggunakan kubectl
 kubectl scale deployment avalanche-worker -n avalanche-parallel --replicas=10
 
-# Check current scale
-kubectl get hpa -n avalanche-parallel
-kubectl get pods -n avalanche-parallel -l app=avalanche-worker
+# Scale menggunakan docker-compose
+docker-compose -f docker-compose.worker-pools.yml up -d --scale worker=5
+
+# Check status scaling
+kubectl get pods -n avalanche-parallel -l app=avalanche-worker  # Untuk Kubernetes
+docker-compose ps  # Untuk Docker
 ```
 
 ## 🔍 Monitoring

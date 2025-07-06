@@ -1,11 +1,13 @@
 package logging
 
+import "go.uber.org/zap"
+
 type Logger interface {
-	Debug(format string, args ...interface{})
-	Info(format string, args ...interface{})
-	Warn(format string, args ...interface{})
-	Error(format string, args ...interface{})
-	Fatal(format string, args ...interface{})
+	Debug(msg string, fields ...zap.Field)
+	Info(msg string, fields ...zap.Field)
+	Warn(msg string, fields ...zap.Field)
+	Error(msg string, fields ...zap.Field)
+	Fatal(msg string, fields ...zap.Field)
 }
 
 type Config struct {
@@ -21,15 +23,19 @@ func NewFactory(config Config) *Factory {
 }
 
 func (f *Factory) Make(name string) (Logger, error) {
-	return &dummyLogger{name: name}, nil
+	logger, err := zap.NewProduction()
+	if err != nil {
+		return nil, err
+	}
+	return &zapLogger{logger: logger.Named(name)}, nil
 }
 
-type dummyLogger struct {
-	name string
+type zapLogger struct {
+	logger *zap.Logger
 }
 
-func (l *dummyLogger) Debug(format string, args ...interface{}) {}
-func (l *dummyLogger) Info(format string, args ...interface{}) {}
-func (l *dummyLogger) Warn(format string, args ...interface{}) {}
-func (l *dummyLogger) Error(format string, args ...interface{}) {}
-func (l *dummyLogger) Fatal(format string, args ...interface{}) {} 
+func (l *zapLogger) Debug(msg string, fields ...zap.Field) { l.logger.Debug(msg, fields...) }
+func (l *zapLogger) Info(msg string, fields ...zap.Field)  { l.logger.Info(msg, fields...) }
+func (l *zapLogger) Warn(msg string, fields ...zap.Field)  { l.logger.Warn(msg, fields...) }
+func (l *zapLogger) Error(msg string, fields ...zap.Field) { l.logger.Error(msg, fields...) }
+func (l *zapLogger) Fatal(msg string, fields ...zap.Field) { l.logger.Fatal(msg, fields...) }

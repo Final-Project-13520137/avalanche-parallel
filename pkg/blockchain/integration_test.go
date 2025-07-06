@@ -10,13 +10,18 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 // TestFullBlockchainFlow tests the complete flow from transaction creation to
 // block acceptance in the blockchain.
 func TestFullBlockchainFlow(t *testing.T) {
+	// Create logger
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	defer logger.Sync()
+
 	// Create blockchain
-	logger := &testLogger{}
 	bc, err := NewBlockchain(logger, 4)
 	require.NoError(t, err)
 
@@ -68,8 +73,12 @@ func TestFullBlockchainFlow(t *testing.T) {
 // TestBlockchainForkResolution tests the blockchain's ability to handle
 // competing chains and resolve forks according to Avalanche consensus.
 func TestBlockchainForkResolution(t *testing.T) {
+	// Create logger
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	defer logger.Sync()
+
 	// Create blockchain
-	logger := &testLogger{}
 	bc, err := NewBlockchain(logger, 4)
 	require.NoError(t, err)
 
@@ -138,8 +147,12 @@ func TestBlockchainForkResolution(t *testing.T) {
 // TestDoubleSpendTransaction tests how the blockchain handles double-spend
 // transactions in different blocks.
 func TestDoubleSpendTransaction(t *testing.T) {
+	// Create logger
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	defer logger.Sync()
+
 	// Create blockchain
-	logger := &testLogger{}
 	bc, err := NewBlockchain(logger, 4)
 	require.NoError(t, err)
 
@@ -179,8 +192,12 @@ func TestDoubleSpendTransaction(t *testing.T) {
 
 // TestHighLoadTransactions tests the blockchain under high transaction load.
 func TestHighLoadTransactions(t *testing.T) {
+	// Create logger
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	defer logger.Sync()
+
 	// Create blockchain
-	logger := &testLogger{}
 	bc, err := NewBlockchain(logger, 4)
 	require.NoError(t, err)
 
@@ -238,8 +255,12 @@ func TestParallelConsensus(t *testing.T) {
 		t.Skip("Skipping parallel consensus benchmark in short mode")
 	}
 
+	// Create logger
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	defer logger.Sync()
+
 	// Create blockchain with parallel processing
-	logger := &testLogger{}
 	bcParallel, err := NewBlockchain(logger, 4) // 4 parallel processors
 	require.NoError(t, err)
 
@@ -253,7 +274,7 @@ func TestParallelConsensus(t *testing.T) {
 
 	// Measure time for parallel processing
 	parallelStart := time.Now()
-	
+
 	// Add transactions to parallel blockchain
 	for _, tx := range transactions {
 		txClone, _ := NewTransaction(tx.Sender, tx.Recipient, tx.Amount, tx.Nonce)
@@ -269,12 +290,12 @@ func TestParallelConsensus(t *testing.T) {
 		bcParallel.ProcessPendingBlocks()
 		parentIDs = []ids.ID{block.ID()}
 	}
-	
+
 	parallelDuration := time.Since(parallelStart)
 
 	// Measure time for sequential processing
 	sequentialStart := time.Now()
-	
+
 	// Add transactions to sequential blockchain
 	for _, tx := range transactions {
 		txClone, _ := NewTransaction(tx.Sender, tx.Recipient, tx.Amount, tx.Nonce)
@@ -290,14 +311,14 @@ func TestParallelConsensus(t *testing.T) {
 		bcSequential.ProcessPendingBlocks()
 		parentIDs = []ids.ID{block.ID()}
 	}
-	
+
 	sequentialDuration := time.Since(sequentialStart)
 
 	// Parallel should be faster than sequential
 	t.Logf("Parallel processing time: %v", parallelDuration)
 	t.Logf("Sequential processing time: %v", sequentialDuration)
 	t.Logf("Speedup: %.2fx", float64(sequentialDuration)/float64(parallelDuration))
-	
+
 	// We expect parallel to be faster, but don't fail the test if it's not
 	// since it depends on the hardware and might not always be true in CI environments
 	if sequentialDuration > parallelDuration {
@@ -305,4 +326,4 @@ func TestParallelConsensus(t *testing.T) {
 	} else {
 		t.Logf("Warning: Parallel processing was not faster in this run")
 	}
-} 
+}

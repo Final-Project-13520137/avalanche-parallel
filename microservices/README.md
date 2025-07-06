@@ -209,7 +209,7 @@ cd avalanche-parallel/microservices
 ### 3. Konfigurasi
 
 1. **Salin file konfigurasi contoh**
-   ```bash
+```bash
    cp .env.example .env
    ```
 
@@ -217,8 +217,8 @@ cd avalanche-parallel/microservices
    ```env
    REDIS_PASSWORD=your_secure_password
    POSTGRES_PASSWORD=your_secure_password
-   LOG_LEVEL=info
-   ```
+LOG_LEVEL=info
+```
 
 ## Penggunaan
 
@@ -375,7 +375,7 @@ Lihat [DOCKER-TROUBLESHOOTING.md](DOCKER-TROUBLESHOOTING.md) untuk panduan lengk
 ### Masalah Umum
 
 1. **Container Tidak Berjalan**
-   ```bash
+```bash
    # Cek logs
    docker-compose -f docker-compose.worker-pools.yml logs
 
@@ -389,7 +389,7 @@ Lihat [DOCKER-TROUBLESHOOTING.md](DOCKER-TROUBLESHOOTING.md) untuk panduan lengk
    - Optimalkan query database
 
 3. **Network Issues**
-   ```bash
+```bash
    # Cek network
    docker network inspect microservices_avalanche-net
 

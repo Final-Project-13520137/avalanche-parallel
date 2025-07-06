@@ -14,14 +14,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 )
 
 // Server implements the worker service
 type Server struct {
-	logger     logging.Logger
+	logger     *zap.Logger
 	workerPool *WorkerPool
 	server     *http.Server
 	lock       sync.RWMutex
@@ -29,28 +29,28 @@ type Server struct {
 }
 
 // NewServer creates a new worker server
-func NewServer(logger logging.Logger, addr string, numWorkers int) *Server {
+func NewServer(logger *zap.Logger, addr string, numWorkers int) *Server {
 	workerPool := NewWorkerPool(logger, 100) // Buffer for 100 tasks
-	
+
 	// Create default workers
 	for i := 0; i < numWorkers; i++ {
 		workerID := fmt.Sprintf("worker-%d", i)
 		worker := NewDefaultWorker(workerID, logger)
 		workerPool.AddWorker(workerID, worker)
 	}
-	
+
 	s := &Server{
 		logger:     logger,
 		workerPool: workerPool,
 		tasks:      make(map[string]Task),
 	}
-	
+
 	router := mux.NewRouter()
 	router.HandleFunc("/tasks", s.handleSubmitTask).Methods(http.MethodPost)
 	router.HandleFunc("/tasks/{id}", s.handleGetTaskResult).Methods(http.MethodGet)
 	router.HandleFunc("/health", s.handleHealth).Methods(http.MethodGet)
 	router.HandleFunc("/readiness", s.handleReadiness).Methods(http.MethodGet)
-	
+
 	s.server = &http.Server{
 		Addr:         addr,
 		Handler:      router,
@@ -58,7 +58,7 @@ func NewServer(logger logging.Logger, addr string, numWorkers int) *Server {
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-	
+
 	return s
 }
 
@@ -66,40 +66,40 @@ func NewServer(logger logging.Logger, addr string, numWorkers int) *Server {
 func (s *Server) Start(ctx context.Context) error {
 	// Start the worker pool
 	s.workerPool.Start(ctx, 10) // Start with 10 worker goroutines
-	
+
 	// Start the HTTP server
 	go func() {
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.logger.Error("Server error: %s", err)
+			s.logger.Error("Server error", zap.Error(err))
 		}
 	}()
-	
-	s.logger.Info("Server started on %s", s.server.Addr)
-	
+
+	s.logger.Info("Server started", zap.String("address", s.server.Addr))
+
 	// Wait for shutdown signal
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-	
+
 	select {
 	case <-ctx.Done():
 		s.logger.Info("Shutting down server due to context cancellation")
 	case <-stop:
 		s.logger.Info("Shutting down server due to signal")
 	}
-	
+
 	// Create a shutdown context with timeout
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	
+
 	// Shutdown the server
 	if err := s.server.Shutdown(shutdownCtx); err != nil {
-		s.logger.Error("Server shutdown error: %s", err)
+		s.logger.Error("Server shutdown error", zap.Error(err))
 		return err
 	}
-	
+
 	// Stop the worker pool
 	s.workerPool.Stop()
-	
+
 	s.logger.Info("Server stopped gracefully")
 	return nil
 }
@@ -111,28 +111,28 @@ func (s *Server) handleSubmitTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Invalid request: %s", err), http.StatusBadRequest)
 		return
 	}
-	
+
 	taskID := uuid.New().String()
 	task := Task{
 		ID:        taskID,
 		Payload:   req.Payload,
 		StartTime: time.Now(),
 	}
-	
+
 	// Store the task
 	s.lock.Lock()
 	s.tasks[taskID] = task
 	s.lock.Unlock()
-	
+
 	// Submit the task to the worker pool
 	s.workerPool.SubmitTask(task)
-	
+
 	// Return the task ID
 	resp := TaskResponse{
 		TaskID: taskID,
 		Status: "accepted",
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(resp)
@@ -142,17 +142,17 @@ func (s *Server) handleSubmitTask(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetTaskResult(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	taskID := vars["id"]
-	
+
 	// Check if the task exists
 	s.lock.RLock()
 	_, exists := s.tasks[taskID]
 	s.lock.RUnlock()
-	
+
 	if !exists {
 		http.Error(w, fmt.Sprintf("Task not found: %s", taskID), http.StatusNotFound)
 		return
 	}
-	
+
 	// Get the result
 	result, found := s.workerPool.GetResult(taskID)
 	if !found {
@@ -164,7 +164,7 @@ func (s *Server) handleGetTaskResult(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	// Return the result
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -191,10 +191,10 @@ func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"status": "ready",
 	})
-} 
+}
