@@ -1,221 +1,296 @@
-# 📁 Scripts untuk Avalanche Parallel Processing
+# 📁 Panduan Penggunaan Avalanche Parallel Processing
 
-Dokumentasi lengkap untuk penggunaan scripts dalam sistem Avalanche Parallel Processing.
+Dokumentasi lengkap untuk menjalankan sistem Avalanche Parallel Processing.
 
 ## 📑 Daftar Isi
-- [Struktur Direktori](#-struktur-direktori)
-- [Panduan Penggunaan](#-panduan-penggunaan)
-  - [Deployment Scripts](#deployment-scripts)
-  - [Scaling Scripts](#scaling-scripts)
-  - [Maintenance Scripts](#maintenance-scripts)
-  - [Setup Scripts](#setup-scripts)
-  - [Benchmark Scripts](#benchmark-scripts)
-  - [Testing Scripts](#testing-scripts)
+- [Prasyarat](#-prasyarat)
+- [Persiapan Environment](#-persiapan-environment)
+- [Deployment](#-deployment)
+  - [Docker Deployment](#docker-deployment)
+  - [Kubernetes Deployment](#kubernetes-deployment)
+- [Scaling](#-scaling)
+- [Monitoring](#-monitoring)
+- [Maintenance](#-maintenance)
 - [Troubleshooting](#-troubleshooting)
 
-## 📂 Struktur Direktori
+## 🔧 Prasyarat
 
-```
-scripts/
-├── deployment/          # Script untuk deployment
-│   ├── deploy-docker.ps1      # Deploy dengan Docker (Windows)
-│   ├── deploy-docker.sh       # Deploy dengan Docker (Linux)
-│   ├── deploy-k8s.ps1        # Deploy ke Kubernetes (Windows)
-│   └── deploy-k8s.sh         # Deploy ke Kubernetes (Linux)
-├── scaling/            # Script untuk scaling
-│   ├── scale-workers.ps1     # Manual scaling (Windows)
-│   ├── scale-workers.sh      # Manual scaling (Linux)
-│   ├── auto-scale.ps1        # Auto-scaling (Windows)
-│   └── auto-scale.sh         # Auto-scaling (Linux)
-├── maintenance/        # Script untuk maintenance
-│   ├── cleanup-all.ps1       # Cleanup resources (Windows)
-│   └── cleanup-all.sh        # Cleanup resources (Linux)
-├── setup/             # Script untuk setup
-│   ├── setup-environment.ps1 # Setup environment (Windows)
-│   └── setup-environment.sh  # Setup environment (Linux)
-├── benchmark/         # Script untuk benchmark
-│   ├── run-benchmark.ps1     # Run benchmark (Windows)
-│   └── run-benchmark.sh      # Run benchmark (Linux)
-```
+1. **Docker**
+   - [Docker Desktop](https://www.docker.com/products/docker-desktop/) untuk Windows/Mac
+   - [Docker Engine](https://docs.docker.com/engine/install/) untuk Linux
 
-## 🚀 Panduan Penggunaan
+2. **Kubernetes** (opsional, untuk deployment Kubernetes)
+   - Docker Desktop Kubernetes, atau
+   - [Minikube](https://minikube.sigs.k8s.io/docs/start/), atau
+   - [kind](https://kind.sigs.k8s.io/docs/user/quick-start/)
 
-### Deployment Scripts
+3. **Tools**
+   - Git
+   - PowerShell (Windows) atau Bash (Linux/Mac)
+   - [kubectl](https://kubernetes.io/docs/tasks/tools/) (untuk Kubernetes)
 
-#### Docker Deployment
+## 🚀 Persiapan Environment
+
+### Windows
+
 ```powershell
-# Windows
+# Set execution policy untuk PowerShell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+
+# Setup environment
+.\scripts\setup\setup-environment.ps1 -Provider docker-desktop
+
+# Setup local registry (untuk Kubernetes)
+.\scripts\setup\setup-registry.ps1 -Force
+```
+
+### Linux/WSL
+
+```bash
+# Buat script executable
+chmod +x ./scripts/setup/*.sh
+chmod +x ./scripts/deployment/*.sh
+chmod +x ./scripts/scaling/*.sh
+chmod +x ./scripts/maintenance/*.sh
+
+# Setup environment
+./scripts/setup/setup-environment.sh --provider docker-desktop
+
+# Setup local registry (untuk Kubernetes)
+./scripts/setup/setup-registry.sh --force
+```
+
+## 📦 Deployment
+
+### Docker Deployment
+
+Deployment menggunakan Docker Compose lebih sederhana dan cocok untuk development.
+
+#### Windows
+```powershell
+# 1. Cleanup resources (jika ada)
+.\scripts\maintenance\cleanup-all.ps1 -Force
+
+# 2. Deploy dengan 3 worker
 .\scripts\deployment\deploy-docker.ps1 -Build -Workers 3
 
-# Linux/WSL
-./scripts/deployment/deploy-docker.sh --build --workers 3
+# 3. Verifikasi deployment
+docker ps
 ```
 
-#### Kubernetes Deployment
+#### Linux/WSL
+```bash
+# 1. Cleanup resources (jika ada)
+./scripts/maintenance/cleanup-all.sh --force
+
+# 2. Deploy dengan 3 worker
+./scripts/deployment/deploy-docker.sh --build --workers 3
+
+# 3. Verifikasi deployment
+docker ps
+```
+
+### Kubernetes Deployment
+
+Deployment menggunakan Kubernetes lebih kompleks tapi lebih powerful untuk production.
+
+#### Windows
 ```powershell
-# Windows
+# 1. Pastikan registry lokal berjalan
+.\scripts\setup\setup-registry.ps1 -Force
+
+# 2. Cleanup resources (jika ada)
+.\scripts\maintenance\cleanup-all.ps1 -Force
+
+# 3. Deploy ke Kubernetes
 .\scripts\deployment\deploy-k8s.ps1 -Build -Registry localhost:5000
 
-# Linux/WSL
-./scripts/deployment/deploy-k8s.sh --build --registry localhost:5000
+# 4. Verifikasi deployment
+kubectl get pods -n avalanche-parallel
 ```
 
-### Scaling Scripts
+#### Linux/WSL
+```bash
+# 1. Pastikan registry lokal berjalan
+./scripts/setup/setup-registry.sh --force
 
-#### Manual Scaling
+# 2. Cleanup resources (jika ada)
+./scripts/maintenance/cleanup-all.sh --force
+
+# 3. Deploy ke Kubernetes
+./scripts/deployment/deploy-k8s.sh --build --registry localhost:5000
+
+# 4. Verifikasi deployment
+kubectl get pods -n avalanche-parallel
+```
+
+## 📈 Scaling
+
+### Manual Scaling
+
+#### Windows
 ```powershell
-# Windows - Scale validator workers
+# Scale validator workers
 .\scripts\scaling\scale-workers.ps1 -WorkerType validator -Count 5 -Monitor
 
-# Linux/WSL - Scale validator workers
-./scripts/scaling/scale-workers.sh --type validator --count 5 --monitor
+# Scale consensus workers
+.\scripts\scaling\scale-workers.ps1 -WorkerType consensus -Count 3 -Monitor
+
+# Scale DAG state workers
+.\scripts\scaling\scale-workers.ps1 -WorkerType dag-state -Count 4 -Monitor
 ```
 
-Opsi untuk `scale-workers`:
-- `-WorkerType`/`--type`: `consensus`, `validator`, atau `dag-state`
-- `-Count`/`--count`: Jumlah worker yang diinginkan
-- `-Monitor`/`--monitor`: Monitor progress scaling
-- `-Force`/`--force`: Skip resource checks
+#### Linux/WSL
+```bash
+# Scale validator workers
+./scripts/scaling/scale-workers.sh --type validator --count 5 --monitor
 
-#### Auto-scaling
+# Scale consensus workers
+./scripts/scaling/scale-workers.sh --type consensus --count 3 --monitor
+
+# Scale DAG state workers
+./scripts/scaling/scale-workers.sh --type dag-state --count 4 --monitor
+```
+
+### Auto Scaling
+
+#### Windows
 ```powershell
-# Windows - Auto-scaling validator workers
+# Auto-scaling validator workers
 .\scripts\scaling\auto-scale.ps1 -WorkerType validator `
     -MinWorkers 2 `
     -MaxWorkers 10 `
     -CpuThresholdUp 80 `
-    -CpuThresholdDown 20 `
-    -QueueThresholdUp 100 `
-    -QueueThresholdDown 10
+    -CpuThresholdDown 20
+```
 
-# Linux/WSL - Auto-scaling validator workers
+#### Linux/WSL
+```bash
+# Auto-scaling validator workers
 ./scripts/scaling/auto-scale.sh --type validator \
     --min-workers 2 \
     --max-workers 10 \
     --cpu-up 80 \
-    --cpu-down 20 \
-    --queue-up 100 \
-    --queue-down 10
+    --cpu-down 20
 ```
 
-Opsi untuk `auto-scale`:
-- `-WorkerType`/`--type`: Tipe worker
-- `-MinWorkers`/`--min-workers`: Minimum jumlah workers
-- `-MaxWorkers`/`--max-workers`: Maximum jumlah workers
-- `-CpuThresholdUp`/`--cpu-up`: CPU threshold untuk scale up (%)
-- `-CpuThresholdDown`/`--cpu-down`: CPU threshold untuk scale down (%)
-- `-QueueThresholdUp`/`--queue-up`: Queue threshold untuk scale up
-- `-QueueThresholdDown`/`--queue-down`: Queue threshold untuk scale down
-- `-CheckInterval`/`--interval`: Interval pengecekan (detik)
+## 📊 Monitoring
 
-### Maintenance Scripts
+### Akses Dashboard
 
+1. **Grafana Dashboard**
+   - Docker: http://localhost:3000
+   - Kubernetes: http://localhost:30300
+   - Credentials: admin/avalanche123
+
+2. **API Gateway**
+   - Docker: http://localhost:8080
+   - Kubernetes: http://localhost:30080
+
+### Melihat Logs
+
+#### Docker
+```bash
+# Lihat logs semua services
+docker-compose logs -f
+
+# Lihat logs specific service
+docker-compose logs -f validator-worker
+```
+
+#### Kubernetes
+```bash
+# Lihat logs semua pods
+kubectl logs -f -n avalanche-parallel -l app=avalanche
+
+# Lihat logs specific pod
+kubectl logs -f -n avalanche-parallel <pod-name>
+```
+
+## 🧹 Maintenance
+
+### Cleanup Resources
+
+#### Windows
 ```powershell
-# Windows - Cleanup resources
+# Cleanup semua resources
 .\scripts\maintenance\cleanup-all.ps1 -Force
 
-# Linux/WSL - Cleanup resources
+# Cleanup specific resources
+.\scripts\maintenance\cleanup-all.ps1 -Type workers
+```
+
+#### Linux/WSL
+```bash
+# Cleanup semua resources
 ./scripts/maintenance/cleanup-all.sh --force
-```
 
-### Setup Scripts
-
-```powershell
-# Windows - Setup environment
-.\scripts\setup\setup-environment.ps1 -Provider docker-desktop
-
-# Linux/WSL - Setup environment
-./scripts/setup/setup-environment.sh --provider docker-desktop
-```
-
-Opsi provider:
-- `docker-desktop`: Docker Desktop dengan Kubernetes
-- `kind`: Kubernetes in Docker
-- `minikube`: Minikube
-
-### Benchmark Scripts
-
-```powershell
-# Windows - Run benchmark
-.\scripts\benchmark\run-benchmark.ps1 -Workers 5 -Transactions 1000
-
-# Linux/WSL - Run benchmark
-./scripts/benchmark/run-benchmark.sh --workers 5 --transactions 1000
-```
-
-### Testing Scripts
-
-```powershell
-# Windows - Run tests
-.\scripts\testing\run-tests.ps1
-
-# Linux/WSL - Run tests
-./scripts/testing/run-tests.sh
+# Cleanup specific resources
+./scripts/maintenance/cleanup-all.sh --type workers
 ```
 
 ## ❗ Troubleshooting
 
 ### Common Issues
 
-1. **Permission Issues**
-   ```powershell
+1. **Docker Registry Error**
+   ```bash
+   # Restart registry
+   docker restart registry
+   # atau
+   ./scripts/setup/setup-registry.sh --force
+   ```
+
+2. **Permission Issues**
+   ```bash
    # Windows
-   Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-
-   # Linux/WSL
-   chmod +x ./scripts/setup/set-permissions.sh
-   ./scripts/setup/set-permissions.sh
+   Set-ExecutionPolicy RemoteSigned -Scope Process
+   
+   # Linux
+   chmod +x ./scripts/**/*.sh
    ```
 
-2. **Docker Issues**
+3. **Network Issues**
    ```bash
-   # Check Docker status
-   docker info
-
-   # Reset Docker environment
-   .\scripts\maintenance\cleanup-all.ps1 -Force
+   # Check Docker network
+   docker network ls
+   docker network inspect avalanche-network
+   
+   # Reset network
+   docker network prune
    ```
 
-3. **Scaling Issues**
+4. **Resource Issues**
    ```bash
-   # Check worker status
-   docker ps --filter "name=worker"
-
-   # Check logs
-   docker-compose logs -f
+   # Check resource usage
+   docker stats
+   
+   # Clean up resources
+   docker system prune -a
    ```
 
 ### Best Practices
 
-1. **Deployment**:
+1. **Deployment**
    - Selalu backup data sebelum deployment
-   - Gunakan flag `-Build`/`--build` untuk rebuild images
+   - Mulai dengan Docker untuk development
+   - Gunakan Kubernetes untuk production
    - Monitor logs setelah deployment
 
-2. **Scaling**:
-   - Mulai dengan manual scaling untuk testing
-   - Gunakan auto-scaling dengan threshold yang sesuai
+2. **Scaling**
+   - Mulai dengan jumlah worker minimal
+   - Scale up secara bertahap
    - Monitor resource usage
+   - Gunakan auto-scaling di production
 
-3. **Maintenance**:
-   - Jalankan cleanup secara regular
-   - Backup data penting
+3. **Monitoring**
+   - Check dashboard secara regular
+   - Setup alerts untuk kondisi kritis
+   - Maintain log rotation
    - Monitor disk space
 
-4. **Testing**:
-   - Run tests sebelum deployment
-   - Verifikasi semua services berjalan
-   - Check logs untuk errors
-
-### Logging
-
-Semua scripts menggunakan sistem logging yang konsisten:
-- ✅ Success messages: Hijau
-- ⚠️ Warnings: Kuning
-- ❌ Errors: Merah
-- ℹ️ Info: Cyan
-- 📊 Metrics: Default
-
-Logs tersimpan di:
-- Windows: `logs\script-name.log`
-- Linux: `logs/script-name.log` 
+4. **Maintenance**
+   - Jalankan cleanup secara regular
+   - Backup data penting
+   - Update dependencies
+   - Check security patches 

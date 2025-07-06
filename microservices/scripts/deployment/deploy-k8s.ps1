@@ -1,82 +1,174 @@
-# Deploy to Kubernetes for Avalanche Parallel Processing
+# Script for deploying Avalanche Parallel Processing to Kubernetes
+
 param(
-    [switch]$Build = $false,
+    [switch]$Build,
     [string]$Registry = "localhost:5000",
     [string]$Namespace = "avalanche-parallel",
-    [string]$KubeConfig = "$HOME/.kube/config"
+    [switch]$Force
 )
 
-Write-Host "🚀 Deploying Avalanche Parallel Processing to Kubernetes..." -ForegroundColor Green
+# Set error action preference
+$ErrorActionPreference = "Stop"
+
+# Get script directory and project root
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = (Get-Item $ScriptDir).Parent.Parent.FullName
+
+# Function to check prerequisites
+function Test-Prerequisites {
+    Write-Host "🔍 Checking prerequisites..." -ForegroundColor Cyan
+
+    # Check Docker
+    try {
+        docker info > $null 2>&1
+    }
+    catch {
+        Write-Host "❌ Docker is not running" -ForegroundColor Red
+        exit 1
+    }
+
+    # Check kubectl
+    if (-not (Get-Command kubectl -ErrorAction SilentlyContinue)) {
+        Write-Host "❌ kubectl not found. Please install kubectl" -ForegroundColor Red
+        exit 1
+    }
+
+    # Check if registry is accessible
+    try {
+        if ($Registry -eq "localhost:5000") {
+            $response = Invoke-WebRequest "http://$Registry/v2/" -UseBasicParsing
+            if ($response.StatusCode -ne 200) {
+                throw "Registry not accessible"
+            }
+        }
+    }
+    catch {
+        Write-Host "❌ Local registry not accessible. Start it with: docker run -d -p 5000:5000 --name registry registry:2" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "✅ Prerequisites check passed" -ForegroundColor Green
+}
+
+# Function to build and push Docker images
+function Build-Images {
+    Write-Host "🔨 Building Docker images..." -ForegroundColor Cyan
+
+    $services = @("consensus-worker", "validator-worker", "dag-state-worker")
+    $buildContext = Join-Path $ProjectRoot "workers"
+
+    foreach ($service in $services) {
+        $dockerfile = Join-Path $buildContext "$service/Dockerfile"
+        $tag = "$Registry/$service`:latest"
+
+        Write-Host "Building $service..." -ForegroundColor Cyan
+        docker build -t $tag -f $dockerfile $buildContext
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Failed to build $service" -ForegroundColor Red
+            exit 1
+        }
+
+        Write-Host "Pushing $service to registry..." -ForegroundColor Cyan
+        docker push $tag
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Failed to push $service" -ForegroundColor Red
+            exit 1
+        }
+    }
+
+    Write-Host "✅ All images built and pushed successfully" -ForegroundColor Green
+}
+
+# Function to apply Kubernetes manifests
+function Apply-Manifests {
+    Write-Host "📦 Applying Kubernetes manifests..." -ForegroundColor Cyan
+
+    # Create or update namespace
+    kubectl create namespace $Namespace --dry-run=client -o yaml | kubectl apply -f -
+
+    # Apply ConfigMap
+    $configMapPath = Join-Path $ProjectRoot "k8s/configmap.yaml"
+    Write-Host "Applying ConfigMap..." -ForegroundColor Cyan
+    kubectl apply -f $configMapPath -n $Namespace
+
+    # Apply worker deployments
+    $k8sPath = Join-Path $ProjectRoot "k8s/worker-pools"
+    Get-ChildItem $k8sPath -Filter "*-deployment.yaml" | ForEach-Object {
+        Write-Host "Applying $($_.Name)..." -ForegroundColor Cyan
+        
+        # Replace registry in deployment file
+        $content = Get-Content $_.FullName -Raw
+        $content = $content.Replace("localhost:5000", $Registry)
+        $content = $content.Replace("namespace: avalanche", "namespace: $Namespace")
+        
+        # Apply using temporary file
+        $tempFile = New-TemporaryFile
+        $content | Set-Content $tempFile
+        kubectl apply -f $tempFile -n $Namespace
+        Remove-Item $tempFile
+    }
+
+    Write-Host "✅ Kubernetes manifests applied successfully" -ForegroundColor Green
+}
+
+# Function to wait for pods
+function Wait-ForPods {
+    Write-Host "⏳ Waiting for pods to be ready..." -ForegroundColor Cyan
+    
+    $timeout = 300 # 5 minutes
+    $elapsed = 0
+    $interval = 5
+
+    while ($elapsed -lt $timeout) {
+        $pods = kubectl get pods -n $Namespace -o json | ConvertFrom-Json
+        $allReady = $true
+        
+        foreach ($pod in $pods.items) {
+            $name = $pod.metadata.name
+            $status = $pod.status.phase
+            $ready = $pod.status.containerStatuses.ready -contains $false
+
+            if ($status -ne "Running" -or $ready) {
+                $allReady = $false
+                break
+            }
+        }
+
+        if ($allReady) {
+            Write-Host "✅ All pods are ready" -ForegroundColor Green
+            return
+        }
+
+        Start-Sleep -Seconds $interval
+        $elapsed += $interval
+    }
+
+    Write-Host "❌ Timeout waiting for pods to be ready" -ForegroundColor Red
+    exit 1
+}
+
+# Main execution
+Write-Host "🚀 Deploying Avalanche Parallel Processing to Kubernetes..." -ForegroundColor Cyan
 
 # Check prerequisites
-Write-Host "Checking prerequisites..." -ForegroundColor Yellow
-
-# Check kubectl
-if (!(Get-Command kubectl -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ kubectl not found. Please install kubectl." -ForegroundColor Red
-    exit 1
-}
-
-# Check kubeconfig
-if (!(Test-Path $KubeConfig)) {
-    Write-Host "❌ kubeconfig not found at $KubeConfig" -ForegroundColor Red
-    exit 1
-}
+Test-Prerequisites
 
 # Build and push images if requested
 if ($Build) {
-    Write-Host "🔨 Building and pushing Docker images..." -ForegroundColor Yellow
-    
-    # Build images
-    docker-compose -f docker-compose.worker-pools.yml build
-    
-    # Tag images
-    docker tag microservices-consensus-worker:latest "$Registry/consensus-worker:latest"
-    docker tag microservices-validator-worker:latest "$Registry/validator-worker:latest"
-    docker tag microservices-dag-state-worker:latest "$Registry/dag-state-worker:latest"
-    
-    # Push images
-    docker push "$Registry/consensus-worker:latest"
-    docker push "$Registry/validator-worker:latest"
-    docker push "$Registry/dag-state-worker:latest"
+    Build-Images
 }
-
-# Create namespace if not exists
-kubectl create namespace $Namespace --dry-run=client -o yaml | kubectl apply -f -
 
 # Apply Kubernetes manifests
-Write-Host "📦 Applying Kubernetes manifests..." -ForegroundColor Yellow
-
-# Apply in order
-$manifests = @(
-    "k8s/namespace.yaml",
-    "k8s/configmap.yaml",
-    "k8s/secret.yaml",
-    "k8s/redis.yaml",
-    "k8s/postgres.yaml",
-    "k8s/consensus-worker.yaml",
-    "k8s/validator-worker.yaml",
-    "k8s/dag-state-worker.yaml",
-    "k8s/api-gateway.yaml",
-    "k8s/monitoring.yaml"
-)
-
-foreach ($manifest in $manifests) {
-    if (Test-Path $manifest) {
-        Write-Host "Applying $manifest..." -ForegroundColor Cyan
-        kubectl apply -f $manifest -n $Namespace
-    }
-}
+Apply-Manifests
 
 # Wait for pods to be ready
-Write-Host "⏳ Waiting for pods to be ready..." -ForegroundColor Yellow
-kubectl wait --for=condition=ready pod --all -n $Namespace --timeout=300s
+Wait-ForPods
 
-# Show status
-Write-Host "`n📊 Deployment Status:" -ForegroundColor Green
+# Show deployment status
+Write-Host "`n📊 Deployment Status:" -ForegroundColor Cyan
 kubectl get pods -n $Namespace
+Write-Host "`n✨ Deployment completed successfully!" -ForegroundColor Green
 
-Write-Host "`n✅ Deployment completed!" -ForegroundColor Green
 Write-Host @"
 🔍 Next steps:
 1. Check pod status: kubectl get pods -n $Namespace
