@@ -1,104 +1,89 @@
-# Script for scaling worker nodes in Avalanche Parallel Processing
-[CmdletBinding()]
-param (
-    [Parameter(Mandatory = $true)]
-    [int]$Workers,
-    
-    [Parameter(Mandatory = $false)]
-    [ValidateSet("docker", "kubernetes")]
-    [string]$Environment = "docker",
+# Script for scaling worker nodes
 
-    [Parameter(Mandatory = $false)]
-    [string]$Namespace = "avalanche-parallel",
+param(
+    [Parameter(Mandatory=$true)]
+    [ValidateSet("validator", "consensus", "dag-state")]
+    [string]$WorkerType,
 
-    [Parameter(Mandatory = $false)]
-    [string]$ComposeFile = "docker-compose.worker-pools.yml"
+    [Parameter(Mandatory=$true)]
+    [ValidateRange(1, 100)]
+    [int]$Count,
+
+    [switch]$Monitor
 )
 
-function Scale-DockerWorkers {
-    param (
-        [int]$Workers,
-        [string]$ComposeFile
-    )
-    
-    Write-Host "Scaling Docker workers to $Workers instances..."
-    
-    if (-not (Test-Path $ComposeFile)) {
-        Write-Error "Docker compose file not found: $ComposeFile"
-        exit 1
-    }
+# Set error action preference
+$ErrorActionPreference = "Stop"
 
+# Get script directory and project root
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = (Get-Item $ScriptDir).Parent.Parent.FullName
+
+# Function to check if Docker is running
+function Test-DockerRunning {
     try {
-        # Scale worker service
-        docker-compose -f $ComposeFile up -d --scale worker=$Workers
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "Successfully scaled workers to $Workers instances" -ForegroundColor Green
-        } else {
-            Write-Error "Failed to scale workers"
-            exit 1
-        }
+        docker info > $null 2>&1
+        return $true
     }
     catch {
-        Write-Error "Error scaling workers: $_"
-        exit 1
+        Write-Host "Error: Docker is not running" -ForegroundColor Red
+        return $false
     }
 }
 
-function Scale-KubernetesWorkers {
-    param (
-        [int]$Workers,
-        [string]$Namespace
-    )
-    
-    Write-Host "Scaling Kubernetes workers to $Workers instances..."
-    
-    try {
-        # Check if kubectl is available
-        if (-not (Get-Command kubectl -ErrorAction SilentlyContinue)) {
-            Write-Error "kubectl not found. Please install kubectl and configure your Kubernetes cluster."
-            exit 1
-        }
-
-        # Check if namespace exists
-        $namespaceExists = kubectl get namespace $Namespace 2>$null
-        if (-not $?) {
-            Write-Error "Namespace '$Namespace' not found"
-            exit 1
-        }
-
-        # Scale deployment
-        kubectl scale deployment avalanche-worker -n $Namespace --replicas=$Workers
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "Successfully scaled workers to $Workers instances" -ForegroundColor Green
-            
-            # Wait for scaling to complete
-            Write-Host "Waiting for scaling to complete..."
-            kubectl rollout status deployment/avalanche-worker -n $Namespace
-            
-            # Show current pods
-            Write-Host "`nCurrent worker pods:"
-            kubectl get pods -n $Namespace -l app=avalanche-worker
-        } else {
-            Write-Error "Failed to scale workers"
-            exit 1
-        }
+# Function to check if docker-compose file exists
+function Test-DockerComposeFile {
+    $composePath = Join-Path $ProjectRoot "docker-compose.worker-pools.yml"
+    if (-not (Test-Path $composePath)) {
+        Write-Host "Error: docker-compose.worker-pools.yml not found in $ProjectRoot" -ForegroundColor Red
+        return $false
     }
-    catch {
-        Write-Error "Error scaling workers: $_"
-        exit 1
-    }
+    return $true
 }
 
-# Main execution
+# Validate environment
+if (-not (Test-DockerRunning)) {
+    exit 1
+}
+
+if (-not (Test-DockerComposeFile)) {
+    exit 1
+}
+
+# Format worker type for docker-compose service name
+$serviceName = switch ($WorkerType) {
+    "validator" { "validator-worker" }
+    "consensus" { "consensus-worker" }
+    "dag-state" { "dag-state-worker" }
+}
+
+Write-Host "Scaling $serviceName to $Count instances..." -ForegroundColor Cyan
+
+# Scale workers
 try {
-    if ($Environment -eq "docker") {
-        Scale-DockerWorkers -Workers $Workers -ComposeFile $ComposeFile
-    } else {
-        Scale-KubernetesWorkers -Workers $Workers -Namespace $Namespace
+    $composePath = Join-Path $ProjectRoot "docker-compose.worker-pools.yml"
+    docker-compose -f $composePath up -d --scale "$serviceName=$Count" --no-recreate
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: Failed to scale workers" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "Successfully scaled $serviceName to $Count instances" -ForegroundColor Green
+
+    # Monitor if requested
+    if ($Monitor) {
+        Write-Host "Monitoring worker status..." -ForegroundColor Cyan
+        while ($true) {
+            Clear-Host
+            Write-Host "Current $serviceName status:" -ForegroundColor Cyan
+            docker-compose -f $composePath ps $serviceName
+            docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}" --no-stream | Where-Object { $_ -match $serviceName }
+            Start-Sleep -Seconds 5
+        }
     }
 }
 catch {
-    Write-Error "Error in main execution: $_"
+    Write-Host "Error: $_" -ForegroundColor Red
     exit 1
 } 
