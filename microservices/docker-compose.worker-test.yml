@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: avalanche-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: avalanche-postgres
+    environment:
+      POSTGRES_DB: avalanche
+      POSTGRES_USER: avalanche
+      POSTGRES_PASSWORD: avalanche123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  validator-worker-1:
+    build:
+      context: .
+      dockerfile: workers/validator-worker/Dockerfile
+    container_name: validator-worker-1
+    expose:
+      - 8080
+    environment:
+      - WORKER_ID=validator-worker-1
+      - REDIS_URL=redis://redis:6379
+      - TASK_QUEUE=validation_tasks
+      - RESULT_QUEUE=validation_results
+      - MAX_WORKERS=15
+      - LOG_LEVEL=info
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  validator-worker-2:
+    build:
+      context: .
+      dockerfile: workers/validator-worker/Dockerfile
+    container_name: validator-worker-2
+    expose:
+      - 8080
+    environment:
+      - WORKER_ID=validator-worker-2
+      - REDIS_URL=redis://redis:6379
+      - TASK_QUEUE=validation_tasks
+      - RESULT_QUEUE=validation_results
+      - MAX_WORKERS=15
+      - LOG_LEVEL=info
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  dag-state-worker-1:
+    build:
+      context: .
+      dockerfile: workers/dag-state-worker/Dockerfile
+    container_name: dag-state-worker-1
+    expose:
+      - 8082
+    environment:
+      - WORKER_ID=dag-state-worker-1
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgres://avalanche:avalanche123@postgres:5432/avalanche?sslmode=disable
+      - PORT=8082
+      - TASK_QUEUE=dag_state_tasks
+      - RESULT_QUEUE=dag_state_results
+      - MAX_WORKERS=8
+      - LOG_LEVEL=info
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  avalanche-net:
+    driver: bridge 

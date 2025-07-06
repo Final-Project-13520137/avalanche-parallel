@@ -1,0 +1,21 @@
+{
+    "timestamp": "2025-07-06T16:20:54Z",
+    "configuration": "consensus:4,validator:6,dag-state:3",
+    "transaction_count": 5000,
+    "duration": 320.850720026,
+    "throughput_tps": 0,
+    "queues": {
+        "consensus_remaining": 0,
+        "validation_remaining": 0,
+        "dag_state_remaining": 32448
+    },
+    "processed": {
+        "consensus_processed": 0,
+        "validation_processed": 0,
+        "dag_state_processed": 0,
+        "total_processed": 0
+    },
+    "workers": {
+        "active_workers": 13
+    }
+}

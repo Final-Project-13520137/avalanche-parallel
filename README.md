@@ -40,7 +40,15 @@ Berdasarkan benchmark yang telah dilakukan:
 
 ## 🚀 Quick Start
 
-### 1. Development (Docker Compose)
+### Prerequisites
+
+- Docker Desktop dengan Kubernetes enabled
+- Go 1.23.9 atau lebih baru
+- PowerShell (Windows) atau Bash (Linux/macOS)
+- kubectl command line tool
+- Python 3.8+ dengan pip (untuk benchmarking)
+
+### 1. Development Setup (Docker Compose)
 
 ```bash
 # Clone dan setup
@@ -58,7 +66,7 @@ docker-compose -f docker-compose.worker-pools.yml ps
 docker-compose -f docker-compose.worker-pools.yml logs -f
 ```
 
-### 2. Production (Kubernetes)
+### 2. Production Setup (Kubernetes)
 
 ```bash
 # Deploy to Kubernetes
@@ -84,6 +92,48 @@ docker-compose -f docker-compose.worker-pools.yml logs -f
 ./scripts/benchmark/worker-pool-benchmark.sh test
 ```
 
+### 4. Docker Cleanup
+
+Untuk membersihkan environment Docker dan memulai dari awal:
+
+#### Windows (PowerShell):
+```powershell
+# Fast cleanup script
+.\scripts\cleanup-docker-fast.ps1
+
+# Manual cleanup
+docker kill $(docker ps -q)                    # Kill semua container
+docker rm -f $(docker ps -a -q)               # Remove semua container
+docker rmi -f $(docker images -a -q)          # Remove semua images
+docker volume rm $(docker volume ls -q)        # Remove semua volumes
+docker network rm avalanche-network           # Remove network
+```
+
+#### Linux/macOS:
+```bash
+# Fast cleanup script
+./scripts/cleanup-docker-fast.sh
+
+# Manual cleanup
+docker kill $(docker ps -q)                    # Kill semua container
+docker rm -f $(docker ps -a -q)               # Remove semua container
+docker rmi -f $(docker images -a -q)          # Remove semua images
+docker volume rm $(docker volume ls -q)        # Remove semua volumes
+docker network rm avalanche-network           # Remove network
+```
+
+#### Reset Complete Docker State:
+Jika cleanup biasa terlalu lambat atau ada masalah:
+
+1. Stop Docker Desktop
+2. Delete folder data Docker:
+   - Windows: `%USERPROFILE%\.docker`
+   - macOS: `~/Library/Containers/com.docker.docker`
+   - Linux: `/var/lib/docker`
+3. Start Docker Desktop
+
+⚠️ **Warning**: Ini akan menghapus SEMUA data Docker, tidak hanya yang terkait proyek ini.
+
 ## 📁 Project Structure
 
 ```
@@ -102,6 +152,9 @@ avalanche-parallel/
 │   ├── deployment/
 │   │   ├── deploy-worker-pools.sh   # Deploy worker pools to K8s
 │   │   └── build-microservices.sh   # Build worker images
+│   ├── cleanup/
+│   │   ├── cleanup-docker-fast.ps1  # Fast Docker cleanup (Windows)
+│   │   └── cleanup-docker-fast.sh   # Fast Docker cleanup (Linux/macOS)
 │   └── benchmark/
 │       ├── worker-pool-benchmark.sh # Worker pool performance test
 │       └── run-microservices-benchmark.sh # Compare with monolith
@@ -281,6 +334,49 @@ echo '{"id":"test","type":"vertex_validation"}' | \
 
 # Check result
 redis-cli BRPOP consensus_results 5
+```
+
+### Troubleshooting
+
+#### Common Issues
+
+1. **Docker Build Fails**:
+   ```bash
+   # Clean build cache
+   docker builder prune -f
+   # Rebuild with no cache
+   docker-compose build --no-cache
+   ```
+
+2. **Container Won't Start**:
+   ```bash
+   # Check logs
+   docker logs <container_id>
+   # Verify environment
+   docker inspect <container_id>
+   ```
+
+3. **Performance Issues**:
+   ```bash
+   # Check resource usage
+   docker stats
+   # Monitor queue depths
+   watch -n1 'docker exec avalanche-redis redis-cli LLEN consensus_tasks'
+   ```
+
+4. **Network Issues**:
+   ```bash
+   # Recreate network
+   docker network rm avalanche-network
+   docker network create avalanche-network
+   ```
+
+5. **Redis Connection Failed**:
+   ```bash
+   # Verify Redis is running
+   docker ps | grep redis
+   # Check Redis logs
+   docker logs avalanche-redis
 ```
 
 ## 🎯 Best Practices

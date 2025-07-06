@@ -1,5 +1,3 @@
-# Docker Compose configuration for Avalanche Parallel Processing System
-
 services:
   # Infrastructure
   redis:
@@ -39,18 +37,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    restart: unless-stopped
-
-  # API Gateway
-  api-gateway:
-    image: alpine:latest
-    container_name: avalanche-api-gateway
-    command: sh -c "echo 'API Gateway started' && sleep infinity"
-    ports:
-      - "9650:9650"
-      - "9750:9750"
-    networks:
-      - avalanche-net
     restart: unless-stopped
 
   # Consensus Workers
@@ -136,48 +122,6 @@ services:
       - avalanche-net
     restart: unless-stopped
 
-  # Load Balancer
-  dag-state-worker-lb:
-    image: alpine:latest
-    container_name: dag-state-worker-lb
-    command: sh -c "echo 'DAG State Worker LB started' && sleep infinity"
-    ports:
-      - "8082:8082"
-      - "8404:8404"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
-  # Monitoring
-  prometheus:
-    image: alpine:latest
-    container_name: avalanche-prometheus
-    command: sh -c "echo 'Prometheus started' && sleep infinity"
-    ports:
-      - "9090:9090"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
-  grafana:
-    image: alpine:latest
-    container_name: avalanche-grafana
-    command: sh -c "echo 'Grafana started' && sleep infinity"
-    ports:
-      - "3000:3000"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
-  # Worker Monitor
-  worker-monitor:
-    image: alpine:latest
-    container_name: worker-monitor
-    command: sh -c "echo 'Worker Monitor started' && sleep infinity"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
 volumes:
   redis_data:
     driver: local
@@ -186,7 +130,4 @@ volumes:
 
 networks:
   avalanche-net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16 
+    driver: bridge 
