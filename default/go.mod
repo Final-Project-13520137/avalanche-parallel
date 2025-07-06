@@ -1,4 +1,4 @@
-module github.com/ava-labs/avalanchego
+module github.com/Final-Project-13520137/avalanche-parallel/default
 
 // - Changes to the minimum golang version must also be replicated in:
 //   - CONTRIBUTING.md
@@ -10,6 +10,7 @@ module github.com/ava-labs/avalanchego
 go 1.23.9
 
 require (
+	github.com/Final-Project-13520137/avalanche-parallel/utils v0.0.0
 	github.com/DataDog/zstd v1.5.2
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/StephenButtolph/canoto v0.15.0
@@ -198,3 +199,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+replace github.com/Final-Project-13520137/avalanche-parallel/utils => ../utils
