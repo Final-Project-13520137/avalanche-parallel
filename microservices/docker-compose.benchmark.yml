@@ -1,0 +1,244 @@
+services:
+  # Infrastructure
+  redis:
+    image: redis:7-alpine
+    container_name: benchmark-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    networks:
+      - benchmark-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Benchmark Generator
+  benchmark-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+      target: benchmark
+    container_name: benchmark-generator
+    ports:
+      - "9000:9000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PORT=9000
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+  # Consensus Workers Pool
+  consensus-worker-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+      target: worker
+    container_name: consensus-worker-1
+    environment:
+      - WORKER_ID=consensus-worker-1
+      - WORKER_TYPE=consensus
+      - REDIS_URL=redis://redis:6379
+      - PORT=8081
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+  consensus-worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+      target: worker
+    container_name: consensus-worker-2
+    environment:
+      - WORKER_ID=consensus-worker-2
+      - WORKER_TYPE=consensus
+      - REDIS_URL=redis://redis:6379
+      - PORT=8082
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+  consensus-worker-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+      target: worker
+    container_name: consensus-worker-3
+    environment:
+      - WORKER_ID=consensus-worker-3
+      - WORKER_TYPE=consensus
+      - REDIS_URL=redis://redis:6379
+      - PORT=8083
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+  # Validator Workers Pool
+  validator-worker-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+      target: worker
+    container_name: validator-worker-1
+    environment:
+      - WORKER_ID=validator-worker-1
+      - WORKER_TYPE=validator
+      - REDIS_URL=redis://redis:6379
+      - PORT=8091
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+  validator-worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+      target: worker
+    container_name: validator-worker-2
+    environment:
+      - WORKER_ID=validator-worker-2
+      - WORKER_TYPE=validator
+      - REDIS_URL=redis://redis:6379
+      - PORT=8092
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+  validator-worker-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+      target: worker
+    container_name: validator-worker-3
+    environment:
+      - WORKER_ID=validator-worker-3
+      - WORKER_TYPE=validator
+      - REDIS_URL=redis://redis:6379
+      - PORT=8093
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+  validator-worker-4:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+      target: worker
+    container_name: validator-worker-4
+    environment:
+      - WORKER_ID=validator-worker-4
+      - WORKER_TYPE=validator
+      - REDIS_URL=redis://redis:6379
+      - PORT=8094
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+  # DAG/State Workers Pool
+  dag-state-worker-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+      target: worker
+    container_name: dag-state-worker-1
+    environment:
+      - WORKER_ID=dag-state-worker-1
+      - WORKER_TYPE=dag-state
+      - REDIS_URL=redis://redis:6379
+      - PORT=8101
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+  dag-state-worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+      target: worker
+    container_name: dag-state-worker-2
+    environment:
+      - WORKER_ID=dag-state-worker-2
+      - WORKER_TYPE=dag-state
+      - REDIS_URL=redis://redis:6379
+      - PORT=8102
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: benchmark-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus-worker.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=1d'
+      - '--web.enable-lifecycle'
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: benchmark-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - benchmark-net
+    restart: unless-stopped
+
+volumes:
+  grafana_data:
+    driver: local
+
+networks:
+  benchmark-net:
+    driver: bridge 

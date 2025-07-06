@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: avalanche-parallel
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: avalanche-config
+  namespace: avalanche-parallel
+data:
+  network: "local"
+  log_level: "info"
+  max_processing_threads: "4"
+  worker_pool_size: "10"
+  queue_buffer_size: "1000"
+  consensus_timeout: "30s"
+  dag_state_sync_interval: "5s" 

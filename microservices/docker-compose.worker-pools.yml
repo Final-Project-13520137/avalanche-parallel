@@ -1,0 +1,390 @@
+# Docker Compose configuration for Avalanche Parallel Processing System
+
+services:
+  # Infrastructure
+  redis:
+    image: redis:7-alpine
+    container_name: avalanche-redis
+    ports:
+      - 6379:6379
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - avalanche-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: avalanche-postgres
+    environment:
+      POSTGRES_DB: avalanche
+      POSTGRES_USER: avalanche
+      POSTGRES_PASSWORD: avalanche123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - avalanche-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U avalanche"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/deployments/Dockerfile
+    container_name: avalanche-api-gateway
+    ports:
+      - 9650:9650
+      - 9750:9750
+    environment:
+      - SERVICE_PORT=9650
+      - METRICS_PORT=9750
+      - REDIS_URL=redis://redis:6379
+      - CONSENSUS_QUEUE=consensus_tasks
+      - CONSENSUS_RESULT_QUEUE=consensus_results
+      - VALIDATOR_QUEUE=validation_tasks
+      - VALIDATOR_RESULT_QUEUE=validation_results
+      - DAG_STATE_QUEUE=dag_state_tasks
+      - DAG_STATE_RESULT_QUEUE=dag_state_results
+      - DAG_STATE_ENDPOINT=http://dag-state-worker-1:8082
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - avalanche-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9650/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Consensus Workers
+  consensus-worker-1:
+    build:
+      context: .
+      dockerfile: workers/consensus-worker/Dockerfile
+    container_name: consensus-worker-1
+    environment:
+      - WORKER_ID=consensus-worker-1
+      - REDIS_URL=redis://redis:6379
+      - TASK_QUEUE=consensus_tasks
+      - RESULT_QUEUE=consensus_results
+      - MAX_WORKERS=10
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  consensus-worker-2:
+    build:
+      context: .
+      dockerfile: workers/consensus-worker/Dockerfile
+    container_name: consensus-worker-2
+    environment:
+      - WORKER_ID=consensus-worker-2
+      - REDIS_URL=redis://redis:6379
+      - TASK_QUEUE=consensus_tasks
+      - RESULT_QUEUE=consensus_results
+      - MAX_WORKERS=10
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  consensus-worker-3:
+    build:
+      context: .
+      dockerfile: workers/consensus-worker/Dockerfile
+    container_name: consensus-worker-3
+    environment:
+      - WORKER_ID=consensus-worker-3
+      - REDIS_URL=redis://redis:6379
+      - TASK_QUEUE=consensus_tasks
+      - RESULT_QUEUE=consensus_results
+      - MAX_WORKERS=10
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  # Validator Workers
+  validator-worker-1:
+    build:
+      context: .
+      dockerfile: workers/validator-worker/Dockerfile
+    container_name: validator-worker-1
+    environment:
+      - WORKER_ID=validator-worker-1
+      - REDIS_URL=redis://redis:6379
+      - TASK_QUEUE=validation_tasks
+      - RESULT_QUEUE=validation_results
+      - MAX_WORKERS=15
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  validator-worker-2:
+    build:
+      context: .
+      dockerfile: workers/validator-worker/Dockerfile
+    container_name: validator-worker-2
+    environment:
+      - WORKER_ID=validator-worker-2
+      - REDIS_URL=redis://redis:6379
+      - TASK_QUEUE=validation_tasks
+      - RESULT_QUEUE=validation_results
+      - MAX_WORKERS=15
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  validator-worker-3:
+    build:
+      context: .
+      dockerfile: workers/validator-worker/Dockerfile
+    container_name: validator-worker-3
+    environment:
+      - WORKER_ID=validator-worker-3
+      - REDIS_URL=redis://redis:6379
+      - TASK_QUEUE=validation_tasks
+      - RESULT_QUEUE=validation_results
+      - MAX_WORKERS=15
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  validator-worker-4:
+    build:
+      context: .
+      dockerfile: workers/validator-worker/Dockerfile
+    container_name: validator-worker-4
+    environment:
+      - WORKER_ID=validator-worker-4
+      - REDIS_URL=redis://redis:6379
+      - TASK_QUEUE=validation_tasks
+      - RESULT_QUEUE=validation_results
+      - MAX_WORKERS=15
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  validator-worker-5:
+    build:
+      context: .
+      dockerfile: workers/validator-worker/Dockerfile
+    container_name: validator-worker-5
+    environment:
+      - WORKER_ID=validator-worker-5
+      - REDIS_URL=redis://redis:6379
+      - TASK_QUEUE=validation_tasks
+      - RESULT_QUEUE=validation_results
+      - MAX_WORKERS=15
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  # DAG State Workers
+  dag-state-worker-1:
+    build:
+      context: .
+      dockerfile: workers/dag-state-worker/Dockerfile
+    container_name: dag-state-worker-1
+    expose:
+      - 8082
+    environment:
+      - WORKER_ID=dag-state-worker-1
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgres://avalanche:avalanche123@postgres:5432/avalanche?sslmode=disable
+      - PORT=8082
+      - TASK_QUEUE=dag_state_tasks
+      - RESULT_QUEUE=dag_state_results
+      - MAX_WORKERS=8
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - avalanche-net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  dag-state-worker-2:
+    build:
+      context: .
+      dockerfile: workers/dag-state-worker/Dockerfile
+    container_name: dag-state-worker-2
+    expose:
+      - 8082
+    environment:
+      - WORKER_ID=dag-state-worker-2
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgres://avalanche:avalanche123@postgres:5432/avalanche?sslmode=disable
+      - PORT=8082
+      - TASK_QUEUE=dag_state_tasks
+      - RESULT_QUEUE=dag_state_results
+      - MAX_WORKERS=8
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - avalanche-net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Load Balancer
+  dag-state-worker-lb:
+    image: haproxy:2.8-alpine
+    container_name: dag-state-worker-lb
+    ports:
+      - 8082:8082
+      - 8404:8404
+    volumes:
+      - ./loadbalancer/dag-state-haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - dag-state-worker-1
+      - dag-state-worker-2
+    networks:
+      - avalanche-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8404/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: avalanche-prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - ./monitoring/prometheus-worker.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+    networks:
+      - avalanche-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: avalanche-grafana
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=redis-datasource,prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - avalanche-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Worker Monitor
+  worker-monitor:
+    image: redis:7-alpine
+    container_name: worker-monitor
+    command: sh -c "while true; do echo 'Consensus Tasks:' \$$(redis-cli -h redis LLEN consensus_tasks); echo 'Validation Tasks:' \$$(redis-cli -h redis LLEN validation_tasks); echo 'DAG State Tasks:' \$$(redis-cli -h redis LLEN dag_state_tasks); echo '---'; sleep 30; done"
+    depends_on:
+      - redis
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  avalanche-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16 

@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dag-state-worker
+  namespace: avalanche
+  labels:
+    app: dag-state-worker
+    type: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dag-state-worker
+  template:
+    metadata:
+      labels:
+        app: dag-state-worker
+        type: worker
+    spec:
+      containers:
+      - name: dag-state-worker
+        image: avalanche-dag-state-worker:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8082
+          name: http
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: WORKER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        - name: POSTGRES_URL
+          value: "postgres://avalanche:avalanche123@postgres:5432/avalanche?sslmode=disable"
+        - name: PORT
+          value: "8082"
+        - name: TASK_QUEUE
+          value: "dag_state_tasks"
+        - name: RESULT_QUEUE
+          value: "dag_state_results"
+        - name: MAX_WORKERS
+          value: "8"
+        - name: LOG_LEVEL
+          value: "info"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8082
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8082
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: config
+          mountPath: /etc/avalanche
+          readOnly: true
+        - name: logs
+          mountPath: /var/log
+      volumes:
+      - name: config
+        configMap:
+          name: avalanche-config
+      - name: logs
+        emptyDir: {}
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dag-state-worker-service
+  namespace: avalanche
+  labels:
+    app: dag-state-worker
+spec:
+  selector:
+    app: dag-state-worker
+  ports:
+  - name: http
+    port: 8082
+    targetPort: 8082
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dag-state-worker-hpa
+  namespace: avalanche
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dag-state-worker
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
