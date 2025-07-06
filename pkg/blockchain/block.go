@@ -18,13 +18,13 @@ import (
 
 // Block represents a block in the blockchain, implementing the ParallelVertex interface
 type Block struct {
-	ID_          ids.ID          `json:"id"`
-	ParentIDs    []ids.ID        `json:"parentIDs"`
-	Height_      uint64          `json:"height"`
-	Timestamp_   int64           `json:"timestamp"`
-	Transactions []*Transaction  `json:"transactions"`
-	status       choices.Status  `json:"status"`
-	bytes        []byte          `json:"bytes"`
+	id           ids.ID         `json:"id"`
+	ParentIDs    []ids.ID       `json:"parentIDs"`
+	height       uint64         `json:"height"`
+	timestamp    int64          `json:"timestamp"`
+	Transactions []*Transaction `json:"transactions"`
+	status       choices.Status `json:"status"`
+	bytes        []byte         `json:"bytes"`
 }
 
 // NewBlock creates a new block
@@ -32,8 +32,8 @@ func NewBlock(parentIDs []ids.ID, transactions []*Transaction, height uint64) (*
 	block := &Block{
 		ParentIDs:    parentIDs,
 		Transactions: transactions,
-		Height_:      height,
-		Timestamp_:   time.Now().UnixNano(),
+		height:       height,
+		timestamp:    time.Now().UnixNano(),
 		status:       choices.Processing,
 	}
 
@@ -43,18 +43,18 @@ func NewBlock(parentIDs []ids.ID, transactions []*Transaction, height uint64) (*
 		return nil, err
 	}
 	block.bytes = bytes
-	
+
 	// Create ID using SHA-256 hash of the bytes
 	hasher := sha256.New()
 	hasher.Write(bytes)
-	copy(block.ID_[:], hasher.Sum(nil))
+	copy(block.id[:], hasher.Sum(nil))
 
 	return block, nil
 }
 
 // ID returns the block ID
 func (b *Block) ID() ids.ID {
-	return b.ID_
+	return b.id
 }
 
 // Accept marks the block as accepted and processes all its transactions
@@ -99,7 +99,7 @@ func (b *Block) Parents() ([]avalanche.Vertex, error) {
 
 // Height returns the block height
 func (b *Block) Height() (uint64, error) {
-	return b.Height_, nil
+	return b.height, nil
 }
 
 // Bytes returns the byte representation of the block
@@ -132,36 +132,36 @@ func (b *Block) Txs(ctx context.Context) ([]snowstorm.Tx, error) {
 func (b *Block) generateBytes() ([]byte, error) {
 	// For simplicity, create a basic representation
 	// In a real implementation, we would use a more sophisticated encoding
-	
+
 	// Allocate buffer for height (8 bytes) + parent count (8 bytes) + parent IDs + tx count (8 bytes)
 	parentIDsSize := len(b.ParentIDs) * 32 // Using 32 bytes for each ID
 	buffer := make([]byte, 8+8+parentIDsSize+8)
-	
+
 	// Add height
-	binary.BigEndian.PutUint64(buffer[:8], b.Height_)
-	
+	binary.BigEndian.PutUint64(buffer[:8], b.height)
+
 	// Add parent count
 	binary.BigEndian.PutUint64(buffer[8:16], uint64(len(b.ParentIDs)))
-	
+
 	// Add parent IDs
 	offset := 16
 	for _, parentID := range b.ParentIDs {
 		copy(buffer[offset:offset+32], parentID[:])
 		offset += 32
 	}
-	
+
 	// Add transaction count
 	binary.BigEndian.PutUint64(buffer[offset:offset+8], uint64(len(b.Transactions)))
-	
+
 	return buffer, nil
 }
 
 // GetProcessingPriority returns the block's processing priority
 func (b *Block) GetProcessingPriority() uint64 {
-	return b.Height_
+	return b.height
 }
 
 // Timestamp returns the timestamp of this block
 func (b *Block) Timestamp() (int64, error) {
-	return b.Timestamp_, nil
-} 
+	return b.timestamp, nil
+}

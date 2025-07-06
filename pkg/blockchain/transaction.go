@@ -24,15 +24,15 @@ var (
 
 // Transaction represents a transfer of tokens from a sender to a recipient
 type Transaction struct {
-	ID_       ids.ID              `json:"id"`
-	Sender    string              `json:"sender"`
-	Recipient string              `json:"recipient"`
-	Amount    uint64              `json:"amount"`
-	Nonce     uint64              `json:"nonce"`
-	Signature []byte              `json:"signature"`
-	status    choices.Status      `json:"status"`
-	deps      []snowstorm.Tx      `json:"dependencies"`
-	bytes     []byte              `json:"bytes"`
+	id        ids.ID         `json:"id"`
+	Sender    string         `json:"sender"`
+	Recipient string         `json:"recipient"`
+	Amount    uint64         `json:"amount"`
+	Nonce     uint64         `json:"nonce"`
+	Signature []byte         `json:"signature"`
+	status    choices.Status `json:"status"`
+	deps      []snowstorm.Tx `json:"dependencies"`
+	bytes     []byte         `json:"bytes"`
 }
 
 // NewTransaction creates a new transaction
@@ -51,18 +51,18 @@ func NewTransaction(sender, recipient string, amount, nonce uint64) (*Transactio
 		return nil, err
 	}
 	tx.bytes = bytes
-	
+
 	// Use the bytes to create the ID
 	hasher := sha256.New()
 	hasher.Write(bytes)
-	copy(tx.ID_[:], hasher.Sum(nil))
+	copy(tx.id[:], hasher.Sum(nil))
 
 	return tx, nil
 }
 
 // ID returns the transaction ID
 func (tx *Transaction) ID() ids.ID {
-	return tx.ID_
+	return tx.id
 }
 
 // Accept marks the transaction as accepted
@@ -157,5 +157,5 @@ func (tx *Transaction) AddDependency(dep snowstorm.Tx) {
 // MissingDependencies returns the missing dependencies of the transaction
 func (tx *Transaction) MissingDependencies() (set.Set[ids.ID], error) {
 	// For simplicity, we'll just return an empty set since we don't track missing dependencies
-	return set.Empty[ids.ID](), nil
-} 
+	return set.Set[ids.ID]{}, nil
+}

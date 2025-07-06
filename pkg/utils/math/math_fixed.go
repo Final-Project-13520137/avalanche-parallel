@@ -6,7 +6,7 @@ package math
 import (
 	"errors"
 
-	"github.com/ava-labs/avalanchego/utils/cmp"
+	"github.com/Final-Project-13520137/avalanche-parallel/pkg/utils/cmp"
 )
 
 var (
@@ -21,14 +21,14 @@ var (
 )
 
 // MaxUint returns the maximum value of an unsigned integer of type T.
-func MaxUint[T cmp.Unsigned]() T {
+func MaxUint[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr]() T {
 	return ^T(0)
 }
 
 // Add returns:
 // 1) a + b
 // 2) If there is overflow, an error
-func Add[T cmp.Unsigned](a, b T) (T, error) {
+func Add[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr](a, b T) (T, error) {
 	if a > MaxUint[T]()-b {
 		return 0, ErrOverflow
 	}
@@ -38,7 +38,7 @@ func Add[T cmp.Unsigned](a, b T) (T, error) {
 // Sub returns:
 // 1) a - b
 // 2) If there is underflow, an error
-func Sub[T cmp.Unsigned](a, b T) (T, error) {
+func Sub[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr](a, b T) (T, error) {
 	if a < b {
 		return 0, ErrUnderflow
 	}
@@ -48,16 +48,35 @@ func Sub[T cmp.Unsigned](a, b T) (T, error) {
 // Mul returns:
 // 1) a * b
 // 2) If there is overflow, an error
-func Mul[T cmp.Unsigned](a, b T) (T, error) {
+func Mul[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr](a, b T) (T, error) {
 	if b != 0 && a > MaxUint[T]()/b {
 		return 0, ErrOverflow
 	}
 	return a * b, nil
 }
 
-func AbsDiff[T cmp.Unsigned](a, b T) T {
+func AbsDiff[T ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr](a, b T) T {
 	if a > b {
 		return a - b
 	}
 	return b - a
-} 
+}
+
+// Max returns the maximum of a and b
+func Max[T cmp.Bounded[T]](a, b T) T {
+	return cmp.Max(a, b)
+}
+
+// Min returns the minimum of a and b
+func Min[T cmp.Bounded[T]](a, b T) T {
+	return cmp.Min(a, b)
+}
+
+// Compare returns:
+//
+//	-1 if a < b
+//	 0 if a == b
+//	+1 if a > b
+func Compare[T cmp.Bounded[T]](a, b T) int {
+	return cmp.Compare(a, b)
+}

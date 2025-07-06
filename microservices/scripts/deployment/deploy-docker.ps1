@@ -1,21 +1,10 @@
-# Deploy Docker services for Avalanche Parallel Processing
-param(
-    [switch]$Build = $false,
-    [int]$Workers = 3,
-    [string]$ComposeFile = "docker-compose.worker-pools.yml"
-)
+# Run Worker Pools for Avalanche Parallel Processing
+# This script runs the worker pools for the Avalanche Parallel Processing system
 
-Write-Host "🚀 Deploying Avalanche Parallel Processing with Docker..." -ForegroundColor Green
+Write-Host "Starting Avalanche Worker Pools..." -ForegroundColor Green
 
-# Build images if requested
-if ($Build) {
-    Write-Host "🔨 Building Docker images..." -ForegroundColor Yellow
-    docker-compose -f $ComposeFile build
-}
+# Run docker-compose
+docker-compose -f docker-compose.worker-pools.yml up -d
 
-# Start services
-Write-Host "📦 Starting services with $Workers workers..." -ForegroundColor Yellow
-docker-compose -f $ComposeFile up -d --scale validator-worker=$Workers
-
-Write-Host "✅ Deployment completed!" -ForegroundColor Green
-Write-Host "ℹ️ Use 'docker-compose -f $ComposeFile logs -f' to view logs" -ForegroundColor Cyan 
+Write-Host "Worker pools started successfully!" -ForegroundColor Green
+Write-Host "Use 'docker-compose -f docker-compose.worker-pools.yml down' to stop the worker pools." -ForegroundColor Yellow 

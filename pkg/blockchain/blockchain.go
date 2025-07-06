@@ -10,41 +10,40 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 )
 
 // Blockchain manages the chain of blocks and transaction processing
 type Blockchain struct {
-	lock          sync.RWMutex
-	logger        logging.Logger
-	genesisBlock  *Block
-	txPool        map[ids.ID]*Transaction  // Pending transactions
-	blocks        map[ids.ID]*Block        // All blocks
+	lock           sync.RWMutex
+	logger         *zap.Logger
+	genesisBlock   *Block
+	txPool         map[ids.ID]*Transaction // Pending transactions
+	blocks         map[ids.ID]*Block       // All blocks
 	acceptedBlocks map[ids.ID]*Block       // Accepted blocks
-	pendingBlocks map[ids.ID]*Block        // Blocks being processed
-	latestBlocks  map[ids.ID]*Block        // Blocks at the edge of the DAG
+	pendingBlocks  map[ids.ID]*Block       // Blocks being processed
+	latestBlocks   map[ids.ID]*Block       // Blocks at the edge of the DAG
 	blocksByHeight map[uint64][]*Block     // Blocks organized by height
-	currentHeight uint64                   // Current blockchain height
-	maxWorkers    int                      // Maximum number of parallel workers
+	currentHeight  uint64                  // Current blockchain height
+	maxWorkers     int                     // Maximum number of parallel workers
 }
 
 // NewBlockchain creates a new blockchain instance
-func NewBlockchain(logger logging.Logger, maxWorkers int) (*Blockchain, error) {
+func NewBlockchain(logger *zap.Logger, maxWorkers int) (*Blockchain, error) {
 	if maxWorkers <= 0 {
 		maxWorkers = 4 // Default to 4 workers
 	}
 
 	bc := &Blockchain{
-		logger:        logger,
-		txPool:        make(map[ids.ID]*Transaction),
-		blocks:        make(map[ids.ID]*Block),
+		logger:         logger,
+		txPool:         make(map[ids.ID]*Transaction),
+		blocks:         make(map[ids.ID]*Block),
 		acceptedBlocks: make(map[ids.ID]*Block),
-		pendingBlocks: make(map[ids.ID]*Block),
-		latestBlocks:  make(map[ids.ID]*Block),
+		pendingBlocks:  make(map[ids.ID]*Block),
+		latestBlocks:   make(map[ids.ID]*Block),
 		blocksByHeight: make(map[uint64][]*Block),
-		currentHeight: 0,
-		maxWorkers:    maxWorkers,
+		currentHeight:  0,
+		maxWorkers:     maxWorkers,
 	}
 
 	// Create genesis block
@@ -99,8 +98,12 @@ func (bc *Blockchain) CreateBlock(parentIDs []ids.ID, maxTxs int) (*Block, error
 	height := bc.currentHeight + 1
 	for _, parentID := range parentIDs {
 		parent := bc.blocks[parentID]
-		if parent.Height_ >= bc.currentHeight {
-			height = parent.Height_ + 1
+		parentHeight, err := parent.Height()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get parent height: %w", err)
+		}
+		if parentHeight >= bc.currentHeight {
+			height = parentHeight + 1
 		}
 	}
 
@@ -129,16 +132,16 @@ func (bc *Blockchain) CreateBlock(parentIDs []ids.ID, maxTxs int) (*Block, error
 	// Add to pending blocks
 	bc.blocks[block.ID()] = block
 	bc.pendingBlocks[block.ID()] = block
-	
+
 	// Add to blocks by height map
 	if _, exists := bc.blocksByHeight[height]; !exists {
 		bc.blocksByHeight[height] = make([]*Block, 0)
 	}
 	bc.blocksByHeight[height] = append(bc.blocksByHeight[height], block)
 
-	bc.logger.Info("Created block with transactions", 
-		zap.String("blockID", block.ID().String()), 
-		zap.Uint64("height", height), 
+	bc.logger.Info("Created block with transactions",
+		zap.String("blockID", block.ID().String()),
+		zap.Uint64("height", height),
 		zap.Int("txCount", len(selectedTxs)))
 
 	return block, nil
@@ -160,13 +163,17 @@ func (bc *Blockchain) SubmitBlock(block *Block) error {
 	for _, parentID := range block.ParentIDs {
 		delete(bc.latestBlocks, parentID)
 	}
-	
+
 	// Add this block to latest blocks
 	bc.latestBlocks[block.ID()] = block
 
 	// Update blockchain height if needed
-	if block.Height_ > bc.currentHeight {
-		bc.currentHeight = block.Height_
+	blockHeight, err := block.Height()
+	if err != nil {
+		return fmt.Errorf("failed to get block height: %w", err)
+	}
+	if blockHeight > bc.currentHeight {
+		bc.currentHeight = blockHeight
 	}
 
 	bc.logger.Info("Submitted block for processing", zap.String("blockID", block.ID().String()))
@@ -195,7 +202,7 @@ func (bc *Blockchain) ProcessPendingBlocks() error {
 	for _, block := range pendingBlocks {
 		wg.Add(1)
 		semaphore <- struct{}{} // Acquire
-		
+
 		go func(b *Block) {
 			defer func() {
 				<-semaphore // Release
@@ -204,11 +211,11 @@ func (bc *Blockchain) ProcessPendingBlocks() error {
 
 			ctx := context.Background()
 			err := b.Verify(ctx)
-			
+
 			if err == nil {
 				// Simulate consensus process
 				time.Sleep(100 * time.Millisecond)
-				
+
 				// Accept the block
 				err = b.Accept(ctx)
 			}
@@ -232,7 +239,7 @@ func (bc *Blockchain) ProcessPendingBlocks() error {
 
 	for result := range results {
 		if result.err != nil {
-			bc.logger.Error("Failed to process block", 
+			bc.logger.Error("Failed to process block",
 				zap.String("blockID", result.blockID.String()),
 				zap.Error(result.err))
 			// Could implement rejection here
@@ -243,9 +250,18 @@ func (bc *Blockchain) ProcessPendingBlocks() error {
 		block := bc.blocks[result.blockID]
 		bc.acceptedBlocks[result.blockID] = block
 		delete(bc.pendingBlocks, result.blockID)
-		bc.logger.Info("Accepted block", 
+
+		blockHeight, err := block.Height()
+		if err != nil {
+			bc.logger.Error("Failed to get block height",
+				zap.String("blockID", result.blockID.String()),
+				zap.Error(err))
+			continue
+		}
+
+		bc.logger.Info("Accepted block",
 			zap.String("blockID", result.blockID.String()),
-			zap.Uint64("height", block.Height_))
+			zap.Uint64("height", blockHeight))
 	}
 
 	return nil
@@ -347,4 +363,4 @@ func (bc *Blockchain) createGenesisBlock() (*Block, error) {
 	}
 
 	return genesis, nil
-} 
+}

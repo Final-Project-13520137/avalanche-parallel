@@ -12,15 +12,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
+	"go.uber.org/zap"
 )
 
 // Client provides communication with worker services
 type Client struct {
 	baseURL     string
-	httpClient  *http.Client
-	logger      logging.Logger
+	client      *http.Client
+	logger      *zap.Logger
 	concurrency int
+	timeout     time.Duration
 }
 
 // ClientOption is a function that configures a Client
@@ -29,34 +30,34 @@ type ClientOption func(*Client)
 // WithConcurrency sets the maximum number of concurrent requests
 func WithConcurrency(n int) ClientOption {
 	return func(c *Client) {
-		if n > 0 {
-			c.concurrency = n
-		}
+		c.concurrency = n
 	}
 }
 
 // WithTimeout sets the HTTP client timeout
 func WithTimeout(timeout time.Duration) ClientOption {
 	return func(c *Client) {
-		c.httpClient.Timeout = timeout
+		c.timeout = timeout
 	}
 }
 
 // NewClient creates a new worker client
-func NewClient(baseURL string, logger logging.Logger, options ...ClientOption) *Client {
+func NewClient(baseURL string, logger *zap.Logger, options ...ClientOption) *Client {
 	client := &Client{
-		baseURL: strings.TrimSuffix(baseURL, "/"),
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		baseURL:     baseURL,
+		client:      &http.Client{},
 		logger:      logger,
-		concurrency: 10, // Default concurrency
+		concurrency: 1,
+		timeout:     30 * time.Second,
 	}
 
 	// Apply options
 	for _, option := range options {
 		option(client)
 	}
+
+	// Update client timeout
+	client.client.Timeout = client.timeout
 
 	return client
 }
@@ -89,7 +90,7 @@ func (c *Client) SubmitTask(ctx context.Context, payload []byte) (string, error)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to submit task: %w", err)
 	}
@@ -115,7 +116,7 @@ func (c *Client) GetTaskResult(ctx context.Context, taskID string) (*Result, err
 		return nil, fmt.Errorf("failed to create result request: %w", err)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task result: %w", err)
 	}
@@ -145,7 +146,7 @@ func (c *Client) Health(ctx context.Context) error {
 		return fmt.Errorf("failed to create health request: %w", err)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to check health: %w", err)
 	}
@@ -156,4 +157,4 @@ func (c *Client) Health(ctx context.Context) error {
 	}
 
 	return nil
-} 
+}

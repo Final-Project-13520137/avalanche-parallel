@@ -1,86 +1,145 @@
 # Setup environment for Avalanche Parallel Processing
 param(
-    [string]$Provider = "docker-desktop"
+    [Parameter(Mandatory=$true)]
+    [ValidateSet('docker-desktop', 'kind', 'minikube')]
+    [string]$Provider,
+    
+    [switch]$Force = $false
 )
 
 Write-Host "⚙️ Setting up environment for Avalanche Parallel Processing..." -ForegroundColor Green
 
-# Check prerequisites
-Write-Host "Checking prerequisites..." -ForegroundColor Yellow
-
-# Check Docker
-if (!(Get-Command docker -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ Docker not found. Please install Docker Desktop." -ForegroundColor Red
-    exit 1
-}
-
-# Check Docker Compose
-if (!(Get-Command docker-compose -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ Docker Compose not found. Please install Docker Compose." -ForegroundColor Red
-    exit 1
-}
-
-# Check Go
-if (!(Get-Command go -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ Go not found. Please install Go." -ForegroundColor Red
-    exit 1
-}
-
-# Setup Kubernetes if needed
-if ($Provider -eq "docker-desktop") {
-    Write-Host "Setting up Docker Desktop Kubernetes..." -ForegroundColor Yellow
-    
-    # Enable Kubernetes in Docker Desktop
-    Write-Host "Please enable Kubernetes in Docker Desktop settings manually." -ForegroundColor Cyan
-    
-    # Wait for confirmation
-    Read-Host "Press Enter after enabling Kubernetes in Docker Desktop"
-    
-    # Verify Kubernetes
-    kubectl version
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ Kubernetes setup failed." -ForegroundColor Red
-        exit 1
+# Function to install Chocolatey
+function Install-Chocolatey {
+    if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing Chocolatey..." -ForegroundColor Yellow
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+        Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
     }
 }
-elseif ($Provider -eq "kind") {
-    Write-Host "Setting up kind cluster..." -ForegroundColor Yellow
-    
-    # Install kind if not present
-    if (!(Get-Command kind -ErrorAction SilentlyContinue)) {
-        Write-Host "Installing kind..." -ForegroundColor Cyan
-        choco install kind -y
+
+# Function to install Docker Desktop
+function Install-DockerDesktop {
+    if (!(Get-Command docker -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing Docker Desktop..." -ForegroundColor Yellow
+        choco install docker-desktop -y
     }
-    
-    # Create kind cluster
-    kind create cluster --name avalanche-parallel
-}
-elseif ($Provider -eq "minikube") {
-    Write-Host "Setting up minikube..." -ForegroundColor Yellow
-    
-    # Install minikube if not present
-    if (!(Get-Command minikube -ErrorAction SilentlyContinue)) {
-        Write-Host "Installing minikube..." -ForegroundColor Cyan
-        choco install minikube -y
-    }
-    
-    # Start minikube
-    minikube start
 }
 
-# Create necessary directories
-Write-Host "Creating necessary directories..." -ForegroundColor Yellow
-New-Item -ItemType Directory -Force -Path logs
-New-Item -ItemType Directory -Force -Path volumes
+# Function to install Go
+function Install-Go {
+    if (!(Get-Command go -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing Go..." -ForegroundColor Yellow
+        choco install golang -y
+    }
+}
 
-# Copy configuration files
-Write-Host "Setting up configuration..." -ForegroundColor Yellow
-Copy-Item -Path .env.example -Destination .env -Force
+# Function to install Kubernetes tools
+function Install-KubernetesTools {
+    if (!(Get-Command kubectl -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing kubectl..." -ForegroundColor Yellow
+        choco install kubernetes-cli -y
+    }
+    
+    if ($Provider -eq "kind") {
+        if (!(Get-Command kind -ErrorAction SilentlyContinue)) {
+            Write-Host "Installing kind..." -ForegroundColor Yellow
+            choco install kind -y
+        }
+    }
+    elseif ($Provider -eq "minikube") {
+        if (!(Get-Command minikube -ErrorAction SilentlyContinue)) {
+            Write-Host "Installing minikube..." -ForegroundColor Yellow
+            choco install minikube -y
+        }
+    }
+}
 
-Write-Host "✅ Environment setup completed!" -ForegroundColor Green
-Write-Host @"
+# Function to setup Kubernetes
+function Setup-Kubernetes {
+    Write-Host "Setting up Kubernetes with $Provider..." -ForegroundColor Yellow
+    
+    switch ($Provider) {
+        'docker-desktop' {
+            Write-Host "Please enable Kubernetes in Docker Desktop settings manually." -ForegroundColor Cyan
+            Read-Host "Press Enter after enabling Kubernetes in Docker Desktop"
+            
+            # Verify Kubernetes
+            kubectl version
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "❌ Kubernetes setup failed." -ForegroundColor Red
+                exit 1
+            }
+        }
+        'kind' {
+            Write-Host "Creating kind cluster..." -ForegroundColor Yellow
+            kind create cluster --name avalanche-parallel
+        }
+        'minikube' {
+            Write-Host "Starting minikube..." -ForegroundColor Yellow
+            minikube start
+        }
+    }
+}
+
+# Function to create directories
+function Create-Directories {
+    Write-Host "Creating necessary directories..." -ForegroundColor Yellow
+    
+    $directories = @(
+        "logs",
+        "volumes",
+        "volumes/redis",
+        "volumes/postgres",
+        "volumes/prometheus",
+        "volumes/grafana"
+    )
+    
+    foreach ($dir in $directories) {
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    }
+}
+
+# Function to setup configuration
+function Setup-Configuration {
+    Write-Host "Setting up configuration..." -ForegroundColor Yellow
+    
+    # Copy example files if they exist
+    if (Test-Path .env.example) {
+        Copy-Item -Path .env.example -Destination .env -Force
+    }
+    
+    if (Test-Path config/worker-config.example.yaml) {
+        Copy-Item -Path config/worker-config.example.yaml -Destination config/worker-config.yaml -Force
+    }
+}
+
+try {
+    # Install prerequisites
+    Install-Chocolatey
+    Install-DockerDesktop
+    Install-Go
+    Install-KubernetesTools
+    
+    # Setup Kubernetes
+    Setup-Kubernetes
+    
+    # Create directories
+    Create-Directories
+    
+    # Setup configuration
+    Setup-Configuration
+    
+    Write-Host "`n✅ Environment setup completed!" -ForegroundColor Green
+    Write-Host @"
 🔍 Next steps:
 1. Edit .env file with your configuration
-2. Run deployment script:
-   .\scripts\deployment\deploy-docker.ps1 -Build
-"@ -ForegroundColor Cyan 
+2. Start services with: .\scripts\deployment\deploy-docker.ps1 -Build
+3. Monitor with: http://localhost:3000 (Grafana)
+"@ -ForegroundColor Cyan
+
+} catch {
+    Write-Host "❌ Error during setup: $_" -ForegroundColor Red
+    exit 1
+} 
