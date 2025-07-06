@@ -51,15 +51,21 @@ print_error() {
 check_prerequisites() {
     print_step "Checking prerequisites..."
     
-    # Check if Docker is running
-    if ! docker info > /dev/null 2>&1; then
-        print_error "Docker is not running"
+    # Check if kubectl is available
+    if ! command -v kubectl &> /dev/null; then
+        print_error "kubectl is not installed"
         exit 1
     fi
     
-    # Check if Docker Compose is available
-    if ! command -v docker-compose &> /dev/null; then
-        print_error "Docker Compose is not installed"
+    # Check if Kubernetes cluster is accessible
+    if ! kubectl cluster-info &> /dev/null; then
+        print_error "Kubernetes cluster is not accessible"
+        exit 1
+    fi
+    
+    # Check if avalanche namespace exists
+    if ! kubectl get namespace avalanche &> /dev/null; then
+        print_error "avalanche namespace does not exist"
         exit 1
     fi
     
@@ -105,35 +111,16 @@ start_worker_pools() {
     local config=$1
     print_step "Starting worker pools with configuration: $config"
     
-    cd "$MICROSERVICES_DIR"
-    
     # Parse configuration
     IFS=',' read -ra WORKERS <<< "$config"
     
-    # Create dynamic docker-compose override
-    cat > docker-compose.worker-scale.yml << EOF
-version: '3.8'
-services:
-EOF
-    
+    # Scale each worker pool
     for worker_config in "${WORKERS[@]}"; do
         IFS=':' read -r worker_type worker_count <<< "$worker_config"
         
-        for ((i=1; i<=worker_count; i++)); do
-            cat >> docker-compose.worker-scale.yml << EOF
-  ${worker_type}-worker-${i}:
-    extends:
-      file: docker-compose.worker-pools.yml
-      service: ${worker_type}-worker-1
-    container_name: ${worker_type}-worker-${i}
-    environment:
-      - WORKER_ID=${worker_type}-worker-${i}
-EOF
-        done
+        # Scale the deployment
+        kubectl scale deployment -n avalanche "${worker_type}-worker" --replicas="$worker_count"
     done
-    
-    # Start services with scaling
-    docker-compose -f docker-compose.worker-pools.yml -f docker-compose.worker-scale.yml up -d --build
     
     # Wait for services to be ready
     print_step "Waiting for worker pools to be ready..."
@@ -151,10 +138,13 @@ check_worker_health() {
     local retry=0
     
     while [ $retry -lt $max_retries ]; do
-        # Check API Gateway
-        if curl -s http://localhost:9650/health > /dev/null; then
-            # Check Redis
-            if docker exec avalanche-redis redis-cli ping | grep -q PONG; then
+        # Check if all pods are ready
+        local not_ready_pods=$(kubectl get pods -n avalanche -l type=worker | awk 'NR>1 && $3!="Running" {count++} END {print count+0}')
+        
+        if [ "$not_ready_pods" -eq 0 ]; then
+            # Check Redis health
+            local redis_pod=$(kubectl get pod -n avalanche -l app=redis -o jsonpath='{.items[0].metadata.name}')
+            if kubectl exec -n avalanche "$redis_pod" -- redis-cli ping | awk '/PONG/ {found=1} END {exit !found}'; then
                 print_success "All services are healthy"
                 return 0
             fi
@@ -178,14 +168,28 @@ generate_worker_load() {
     
     local start_time=$(date +%s.%N)
     
+    # Get Redis pod name
+    local redis_pod=$(kubectl get pod -n avalanche -l app=redis -o jsonpath='{.items[0].metadata.name}')
+    print_step "Using Redis pod: $redis_pod"
+    
+    # Check Redis connection
+    if ! kubectl exec -n avalanche "$redis_pod" -- redis-cli ping | grep -q PONG; then
+        print_error "Failed to connect to Redis"
+        return 1
+    fi
+    print_success "Redis connection successful"
+    
     # Generate different types of tasks
-    generate_consensus_tasks $((tx_count / 3)) &
+    print_step "Generating consensus tasks..."
+    generate_consensus_tasks $((tx_count / 3)) "$redis_pod" &
     CONSENSUS_PID=$!
     
-    generate_validation_tasks $((tx_count / 2)) &
+    print_step "Generating validation tasks..."
+    generate_validation_tasks $((tx_count / 2)) "$redis_pod" &
     VALIDATION_PID=$!
     
-    generate_dag_state_tasks $((tx_count / 6)) &
+    print_step "Generating DAG/State tasks..."
+    generate_dag_state_tasks $((tx_count / 6)) "$redis_pod" &
     DAG_STATE_PID=$!
     
     # Wait for all load generation to complete
@@ -194,78 +198,142 @@ generate_worker_load() {
     local end_time=$(date +%s.%N)
     local duration=$(echo "$end_time - $start_time" | bc -l)
     
+    # Check task counts
+    local consensus_count=$(kubectl exec -n avalanche "$redis_pod" -- redis-cli LLEN consensus_tasks)
+    local validation_count=$(kubectl exec -n avalanche "$redis_pod" -- redis-cli LLEN validation_tasks)
+    local dag_state_count=$(kubectl exec -n avalanche "$redis_pod" -- redis-cli LLEN dag_state_tasks)
+    
+    print_step "Task counts:"
+    echo "Consensus tasks: $consensus_count"
+    echo "Validation tasks: $validation_count"
+    echo "DAG/State tasks: $dag_state_count"
+    
     # Collect metrics
-    collect_worker_metrics "$config" "$tx_count" "$duration"
+    collect_worker_metrics "$config" "$tx_count" "$duration" "$redis_pod"
     
     print_success "Load generation completed in ${duration}s"
+}
+
+# Generate random base58 ID
+generate_base58_id() {
+    local length=${1:-32}
+    local chars="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+    local id=""
+    for ((i=0; i<length; i++)); do
+        id+=${chars:$((RANDOM % ${#chars})):1}
+    done
+    echo "$id"
 }
 
 # Generate consensus tasks
 generate_consensus_tasks() {
     local count=$1
+    local redis_pod=$2
+    local temp_file="/tmp/consensus_tasks.txt"
+    
+    print_step "Generating $count consensus tasks..."
+    
+    # Create empty file
+    > "$temp_file"
     
     for ((i=1; i<=count; i++)); do
         local task='{
-            "id": "'$(uuidgen)'",
+            "id": "'$(generate_base58_id)'",
             "type": "vertex_validation",
-            "vertex_id": "'$(uuidgen)'",
-            "parent_ids": ["'$(uuidgen)'", "'$(uuidgen)'"],
+            "vertex_id": "'$(generate_base58_id)'",
+            "parent_ids": ["'$(generate_base58_id)'", "'$(generate_base58_id)'"],
             "transactions": [],
             "priority": "high",
             "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
         }'
         
-        # Send task to Redis queue
-        echo "$task" | docker exec -i avalanche-redis redis-cli -x LPUSH consensus_tasks > /dev/null
+        # Append task to file
+        echo "$task" >> "$temp_file"
         
-        # Small delay to avoid overwhelming
-        if [ $((i % 100)) -eq 0 ]; then
+        # Send task to Redis queue in batches
+        if [ $((i % 100)) -eq 0 ] || [ $i -eq $count ]; then
+            print_step "Sending batch of consensus tasks ($i/$count)..."
+            # Copy file to pod
+            kubectl cp "$temp_file" "avalanche/$redis_pod:/tmp/tasks.txt" > /dev/null 2>&1
+            # Load tasks into Redis
+            kubectl exec -n avalanche "$redis_pod" -- sh -c 'while read -r task; do redis-cli LPUSH consensus_tasks "$task" > /dev/null; done < /tmp/tasks.txt' > /dev/null 2>&1
+            # Clear file for next batch
+            > "$temp_file"
             sleep 0.1
         fi
     done
+    
+    # Cleanup
+    rm -f "$temp_file"
+    print_success "Generated $count consensus tasks"
 }
 
 # Generate validation tasks
 generate_validation_tasks() {
     local count=$1
+    local redis_pod=$2
+    local temp_file="/tmp/validation_tasks.txt"
+    
+    print_step "Generating $count validation tasks..."
+    
+    # Create empty file
+    > "$temp_file"
     
     for ((i=1; i<=count; i++)); do
         local task='{
-            "id": "'$(uuidgen)'",
+            "id": "'$(generate_base58_id)'",
             "type": "transaction_validation",
-            "transaction_id": "'$(uuidgen)'",
+            "transaction_id": "'$(generate_base58_id)'",
             "transaction": {
-                "id": "'$(uuidgen)'",
-                "data": "'$(echo "transaction data $i" | base64)'",
+                "id": "'$(generate_base58_id)'",
+                "data": "transaction_data_'$i'",
                 "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
             },
-            "signature": "'$(echo "signature $i" | base64)'",
-            "public_key": "'$(echo "public key $i" | base64)'",
+            "signature": "signature_'$i'",
+            "public_key": "public_key_'$i'",
             "priority": "medium"
         }'
         
-        # Send task to Redis queue
-        echo "$task" | docker exec -i avalanche-redis redis-cli -x LPUSH validation_tasks > /dev/null
+        # Append task to file
+        echo "$task" >> "$temp_file"
         
-        # Small delay to avoid overwhelming
-        if [ $((i % 200)) -eq 0 ]; then
+        # Send task to Redis queue in batches
+        if [ $((i % 200)) -eq 0 ] || [ $i -eq $count ]; then
+            print_step "Sending batch of validation tasks ($i/$count)..."
+            # Copy file to pod
+            kubectl cp "$temp_file" "avalanche/$redis_pod:/tmp/tasks.txt" > /dev/null 2>&1
+            # Load tasks into Redis
+            kubectl exec -n avalanche "$redis_pod" -- sh -c 'while read -r task; do redis-cli LPUSH validation_tasks "$task" > /dev/null; done < /tmp/tasks.txt' > /dev/null 2>&1
+            # Clear file for next batch
+            > "$temp_file"
             sleep 0.05
         fi
     done
+    
+    # Cleanup
+    rm -f "$temp_file"
+    print_success "Generated $count validation tasks"
 }
 
 # Generate DAG/State tasks
 generate_dag_state_tasks() {
     local count=$1
+    local redis_pod=$2
+    local temp_file="/tmp/dag_state_tasks.txt"
+    
+    print_step "Generating $count DAG/State tasks..."
+    
+    # Create empty file
+    > "$temp_file"
     
     for ((i=1; i<=count; i++)); do
         local task='{
-            "id": "'$(uuidgen)'",
+            "id": "'$(generate_base58_id)'",
             "type": "state_update",
-            "vertex_id": "'$(uuidgen)'",
+            "vertex_id": "'$(generate_base58_id)'",
             "state_changes": [
                 {
-                    "account": "'$(uuidgen)'",
+                    "account": "'$(generate_base58_id)'",
                     "balance": '$((RANDOM % 1000000))',
                     "nonce": '$((RANDOM % 1000))'
                 }
@@ -273,14 +341,25 @@ generate_dag_state_tasks() {
             "priority": "low"
         }'
         
-        # Send task to Redis queue
-        echo "$task" | docker exec -i avalanche-redis redis-cli -x LPUSH dag_state_tasks > /dev/null
+        # Append task to file
+        echo "$task" >> "$temp_file"
         
-        # Small delay to avoid overwhelming
-        if [ $((i % 50)) -eq 0 ]; then
+        # Send task to Redis queue in batches
+        if [ $((i % 50)) -eq 0 ] || [ $i -eq $count ]; then
+            print_step "Sending batch of DAG/State tasks ($i/$count)..."
+            # Copy file to pod
+            kubectl cp "$temp_file" "avalanche/$redis_pod:/tmp/tasks.txt" > /dev/null 2>&1
+            # Load tasks into Redis
+            kubectl exec -n avalanche "$redis_pod" -- sh -c 'while read -r task; do redis-cli LPUSH dag_state_tasks "$task" > /dev/null; done < /tmp/tasks.txt' > /dev/null 2>&1
+            # Clear file for next batch
+            > "$temp_file"
             sleep 0.2
         fi
     done
+    
+    # Cleanup
+    rm -f "$temp_file"
+    print_success "Generated $count DAG/State tasks"
 }
 
 # Collect worker metrics
@@ -288,25 +367,26 @@ collect_worker_metrics() {
     local config=$1
     local tx_count=$2
     local duration=$3
+    local redis_pod=$4
     
     print_step "Collecting worker metrics..."
     
     # Get queue depths
-    local consensus_queue=$(docker exec avalanche-redis redis-cli LLEN consensus_tasks)
-    local validation_queue=$(docker exec avalanche-redis redis-cli LLEN validation_tasks)
-    local dag_state_queue=$(docker exec avalanche-redis redis-cli LLEN dag_state_tasks)
+    local consensus_queue=$(kubectl exec -n avalanche "$redis_pod" -- redis-cli LLEN consensus_tasks)
+    local validation_queue=$(kubectl exec -n avalanche "$redis_pod" -- redis-cli LLEN validation_tasks)
+    local dag_state_queue=$(kubectl exec -n avalanche "$redis_pod" -- redis-cli LLEN dag_state_tasks)
     
     # Get processed results
-    local consensus_results=$(docker exec avalanche-redis redis-cli LLEN consensus_results)
-    local validation_results=$(docker exec avalanche-redis redis-cli LLEN validation_results)
-    local dag_state_results=$(docker exec avalanche-redis redis-cli LLEN dag_state_results)
+    local consensus_results=$(kubectl exec -n avalanche "$redis_pod" -- redis-cli LLEN consensus_results)
+    local validation_results=$(kubectl exec -n avalanche "$redis_pod" -- redis-cli LLEN validation_results)
+    local dag_state_results=$(kubectl exec -n avalanche "$redis_pod" -- redis-cli LLEN dag_state_results)
     
     # Calculate throughput
     local total_processed=$((consensus_results + validation_results + dag_state_results))
     local tps=$(echo "scale=2; $total_processed / $duration" | bc -l)
     
     # Get worker statistics
-    local worker_stats=$(curl -s http://localhost:9090/api/v1/query?query=up | jq -r '.data.result | length')
+    local worker_stats=$(kubectl get pods -n avalanche -l type=worker --no-headers | wc -l)
     
     # Save metrics
     local metrics_file="$BENCHMARK_DIR/worker-pool-$TIMESTAMP/metrics_${config//[,:]/_}_${tx_count}.json"
@@ -341,11 +421,13 @@ EOF
 stop_worker_pools() {
     print_step "Stopping worker pools..."
     
-    cd "$MICROSERVICES_DIR"
-    docker-compose -f docker-compose.worker-pools.yml -f docker-compose.worker-scale.yml down
+    # Scale down all worker pools to 0
+    kubectl scale deployment -n avalanche consensus-worker --replicas=0
+    kubectl scale deployment -n avalanche validator-worker --replicas=0
+    kubectl scale deployment -n avalanche dag-state-worker --replicas=0
     
-    # Clean up scale configuration
-    rm -f docker-compose.worker-scale.yml
+    # Wait for pods to terminate
+    kubectl wait --for=delete pod -l type=worker -n avalanche --timeout=60s
     
     print_success "Worker pools stopped"
 }
@@ -543,6 +625,7 @@ main() {
         test)
             print_step "Running quick test..."
             check_prerequisites
+            setup_environment
             start_worker_pools "consensus:2,validator:3,dag-state:2"
             generate_worker_load 100 "test"
             show_worker_status

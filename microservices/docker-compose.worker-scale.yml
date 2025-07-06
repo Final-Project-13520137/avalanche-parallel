@@ -1,0 +1,51 @@
+version: '3.8'
+services:
+  consensus-worker-1:
+    extends:
+      file: docker-compose.worker-pools.yml
+      service: consensus-worker-1
+    container_name: consensus-worker-1
+    environment:
+      - WORKER_ID=consensus-worker-1
+  consensus-worker-2:
+    extends:
+      file: docker-compose.worker-pools.yml
+      service: consensus-worker-1
+    container_name: consensus-worker-2
+    environment:
+      - WORKER_ID=consensus-worker-2
+  validator-worker-1:
+    extends:
+      file: docker-compose.worker-pools.yml
+      service: validator-worker-1
+    container_name: validator-worker-1
+    environment:
+      - WORKER_ID=validator-worker-1
+  validator-worker-2:
+    extends:
+      file: docker-compose.worker-pools.yml
+      service: validator-worker-1
+    container_name: validator-worker-2
+    environment:
+      - WORKER_ID=validator-worker-2
+  validator-worker-3:
+    extends:
+      file: docker-compose.worker-pools.yml
+      service: validator-worker-1
+    container_name: validator-worker-3
+    environment:
+      - WORKER_ID=validator-worker-3
+  dag-state-worker-1:
+    extends:
+      file: docker-compose.worker-pools.yml
+      service: dag-state-worker-1
+    container_name: dag-state-worker-1
+    environment:
+      - WORKER_ID=dag-state-worker-1
+  dag-state-worker-2:
+    extends:
+      file: docker-compose.worker-pools.yml
+      service: dag-state-worker-1
+    container_name: dag-state-worker-2
+    environment:
+      - WORKER_ID=dag-state-worker-2
