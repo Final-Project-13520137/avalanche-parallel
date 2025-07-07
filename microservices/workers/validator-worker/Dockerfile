@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.22-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
@@ -27,11 +27,18 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o validator-worker cmd/main.go
 # Create final image
 FROM alpine:latest
 
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
 # Copy binary from builder
 COPY --from=builder /app/validator-worker .
 
 # Expose metrics port
 EXPOSE 8081
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8081/health || exit 1
 
 # Run
 CMD ["./validator-worker"]
