@@ -11,7 +11,9 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - redis
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -33,7 +35,9 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - postgres
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U avalanche"]
       interval: 30s
@@ -57,7 +61,9 @@ services:
       - VALIDATOR_ENDPOINT=http://validator-haproxy:8081
       - DAG_STATE_ENDPOINT=http://dag-state-haproxy:8082
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - api-gateway
     depends_on:
       - redis
       - postgres
@@ -75,6 +81,9 @@ services:
         limits:
           cpus: '1'
           memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     environment:
       - WORKER_TYPE=consensus
       - REDIS_URL=redis://redis:6379
@@ -82,7 +91,9 @@ services:
       - LOG_LEVEL=info
       - METRICS_PORT=8080
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - consensus-worker
     depends_on:
       - redis
     restart: unless-stopped
@@ -99,6 +110,9 @@ services:
         limits:
           cpus: '1'
           memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     environment:
       - WORKER_TYPE=validator
       - REDIS_URL=redis://redis:6379
@@ -106,7 +120,9 @@ services:
       - LOG_LEVEL=info
       - METRICS_PORT=8081
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - validator-worker
     depends_on:
       - redis
     restart: unless-stopped
@@ -123,6 +139,9 @@ services:
         limits:
           cpus: '1'
           memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     environment:
       - WORKER_TYPE=dag-state
       - REDIS_URL=redis://redis:6379
@@ -131,7 +150,9 @@ services:
       - LOG_LEVEL=info
       - METRICS_PORT=8082
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - dag-state-worker
     depends_on:
       - redis
       - postgres
@@ -147,7 +168,9 @@ services:
       - "8080:8080"
       - "8404:8404"
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - consensus-haproxy
     restart: unless-stopped
 
   validator-haproxy:
@@ -159,7 +182,9 @@ services:
       - "8081:8081"
       - "8405:8404"
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - validator-haproxy
     restart: unless-stopped
 
   dag-state-haproxy:
@@ -171,7 +196,9 @@ services:
       - "8082:8082"
       - "8406:8404"
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - dag-state-haproxy
     restart: unless-stopped
 
   # Monitoring Stack
@@ -183,7 +210,9 @@ services:
     ports:
       - "9090:9090"
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - prometheus
     restart: unless-stopped
 
   grafana:
@@ -198,7 +227,9 @@ services:
     ports:
       - "3000:3000"
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - grafana
     restart: unless-stopped
 
   # Worker Monitor for Auto-scaling
@@ -211,7 +242,9 @@ services:
       - REDIS_URL=redis://redis:6379
       - PROMETHEUS_URL=http://prometheus:9090
     networks:
-      - avalanche-net
+      avalanche-net:
+        aliases:
+          - worker-monitor
     depends_on:
       - redis
       - prometheus
@@ -228,4 +261,6 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16 
+        - subnet: 172.20.0.0/16
+    attachable: true
+    name: avalanche-net 
