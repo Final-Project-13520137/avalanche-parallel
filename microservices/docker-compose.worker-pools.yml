@@ -29,6 +29,11 @@ services:
       POSTGRES_USER: avalanche
       POSTGRES_PASSWORD: avalanche123
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      POSTGRES_HOST_AUTH_METHOD: trust
+    command: 
+      - "postgres"
+      - "-c"
+      - "ssl=off"
     ports:
       - "5432:5432"
     volumes:
@@ -145,7 +150,7 @@ services:
     environment:
       - WORKER_TYPE=dag-state
       - REDIS_URL=redis://redis:6379
-      - POSTGRES_URL=postgres://avalanche:avalanche123@postgres:5432/avalanche
+      - POSTGRES_URL=postgres://avalanche:avalanche123@postgres:5432/avalanche?sslmode=disable
       - MAX_WORKERS=4
       - LOG_LEVEL=info
       - METRICS_PORT=8082
@@ -163,7 +168,10 @@ services:
     image: haproxy:2.4
     container_name: consensus-haproxy
     volumes:
-      - ./loadbalancer/consensus-haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - type: bind
+        source: ./loadbalancer/consensus-haproxy.cfg
+        target: /usr/local/etc/haproxy/haproxy.cfg
+        read_only: true
     ports:
       - "8080:8080"
       - "8404:8404"
@@ -177,7 +185,10 @@ services:
     image: haproxy:2.4
     container_name: validator-haproxy
     volumes:
-      - ./loadbalancer/validator-haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - type: bind
+        source: ./loadbalancer/validator-haproxy.cfg
+        target: /usr/local/etc/haproxy/haproxy.cfg
+        read_only: true
     ports:
       - "8081:8081"
       - "8405:8404"
@@ -191,7 +202,10 @@ services:
     image: haproxy:2.4
     container_name: dag-state-haproxy
     volumes:
-      - ./loadbalancer/dag-state-haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - type: bind
+        source: ./loadbalancer/dag-state-haproxy.cfg
+        target: /usr/local/etc/haproxy/haproxy.cfg
+        read_only: true
     ports:
       - "8082:8082"
       - "8406:8404"
