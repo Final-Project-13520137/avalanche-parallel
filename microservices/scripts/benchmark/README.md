@@ -395,6 +395,26 @@ Untuk pertanyaan atau issues:
 3. Create GitHub issue dengan detail lengkap
 4. Include system information dan error messages
 
+## Prerequisites
+
+Before running the benchmark, make sure you have:
+1. Docker installed and running
+2. Kubernetes cluster (minikube) installed
+3. Python 3.7+ with required packages (see requirements.txt)
+4. Go 1.16+ installed
+
+## Setup Minikube
+
+To setup minikube, run:
+
+```bash
+# Download minikube binary
+./download-minikube.sh
+
+# Start minikube
+./minikube-linux-amd64 start
+```
+
 ---
 
 **Happy Benchmarking! 🚀** 

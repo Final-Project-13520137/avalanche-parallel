@@ -4,119 +4,16 @@ import (
 	"context"
 	"log"
 	"os"
-	"sync"
 	"time"
 
-	"benchmark/types"
-
+	"github.com/Final-Project-13520137/avalanche-parallel/microservices/scripts/benchmark/types"
 	"github.com/go-redis/redis/v8"
 )
-
-// ParallelBenchmark handles parallel processing with worker nodes
-type ParallelBenchmark struct {
-	redisClient *redis.Client
-	workerNodes map[string]types.WorkerNodeInfo
-	nodeMutex   sync.RWMutex
-	results     chan types.BenchmarkResult
-	errors      chan error
-}
 
 func main() {
 	log.Println("🚀 Starting Avalanche Microservices vs Monolith Benchmark")
 
 	// Load configuration
-	config, err := loadBenchmarkConfig()
-	if err != nil {
-		log.Fatalf("Failed to load benchmark config: %v", err)
-	}
-
-	// Initialize benchmark
-	benchmark, err := NewAvalancheBenchmark(config)
-	if err != nil {
-		log.Fatalf("Failed to initialize benchmark: %v", err)
-	}
-
-	// Create results directories
-	if err := createDirectories(config); err != nil {
-		log.Fatalf("Failed to create directories: %v", err)
-	}
-
-	// Run benchmarks
-	log.Println("📊 Running benchmark test cases...")
-
-	for _, testCase := range config.TestCases {
-		log.Printf("🔄 Running test case: %s", testCase.Name)
-
-		// Run microservices benchmark
-		microResult, err := benchmark.RunMicroservicesBenchmark(testCase)
-		if err != nil {
-			log.Printf("❌ Microservices benchmark failed for %s: %v", testCase.Name, err)
-			continue
-		}
-
-		// Run monolith benchmark
-		monolithResult, err := benchmark.RunMonolithBenchmark(testCase)
-		if err != nil {
-			log.Printf("❌ Monolith benchmark failed for %s: %v", testCase.Name, err)
-			continue
-		}
-
-		// Store results
-		benchmark.AddResult(microResult)
-		benchmark.AddResult(monolithResult)
-
-		// Save intermediate results
-		if err := benchmark.SaveResults(); err != nil {
-			log.Printf("⚠️ Failed to save intermediate results: %v", err)
-		}
-
-		log.Printf("✅ Completed test case: %s", testCase.Name)
-
-		// Wait between test cases to allow system recovery
-		time.Sleep(30 * time.Second)
-	}
-
-	// Generate final report and graphs
-	log.Println("📈 Generating benchmark report and graphs...")
-
-	if err := benchmark.GenerateReport(); err != nil {
-		log.Printf("❌ Failed to generate report: %v", err)
-	}
-
-	if err := benchmark.GenerateGraphs(); err != nil {
-		log.Printf("❌ Failed to generate graphs: %v", err)
-	}
-
-	// Print summary
-	benchmark.PrintSummary()
-
-	log.Println("🎉 Benchmark completed successfully!")
-}
-
-// NewAvalancheBenchmark creates a new benchmark instance
-func NewAvalancheBenchmark(config types.BenchmarkConfig) (*types.AvalancheBenchmark, error) {
-	// Initialize Redis client for microservices communication
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "",
-		DB:       0,
-	})
-
-	// Test Redis connection
-	ctx := context.Background()
-	if err := redisClient.Ping(ctx).Err(); err != nil {
-		log.Printf("⚠️ Redis not available, some features may be limited: %v", err)
-	}
-
-	return &types.AvalancheBenchmark{
-		Config:      config,
-		RedisClient: redisClient,
-		Results:     make([]types.BenchmarkResult, 0),
-	}, nil
-}
-
-// loadBenchmarkConfig loads configuration from file or creates default
-func loadBenchmarkConfig() (types.BenchmarkConfig, error) {
 	config := types.BenchmarkConfig{
 		TestCases: []types.TestCase{
 			{
@@ -152,24 +49,92 @@ func loadBenchmarkConfig() (types.BenchmarkConfig, error) {
 				ComplexityFactor: 4,
 			},
 		},
-		WarmupTransactions:  100,
-		MeasurementDuration: 300,
-		ResultsDir:          "benchmark-results",
-		GraphsDir:           "benchmark-graphs",
+		ResultsDir:       "benchmark-results",
+		GraphsDir:        "benchmark-graphs",
+		MonolithEndpoint: "http://localhost:9650",
+		MicroservicesConfig: types.MicroservicesConfig{
+			RedisURL:           "redis://localhost:6379",
+			PostgresURL:        "postgres://avalanche:avalanche123@localhost:5432/avalanche",
+			ValidatorEndpoint:  "http://localhost:8081",
+			ConsensusEndpoint:  "http://localhost:8082",
+			DagStateEndpoint:   "http://localhost:8083",
+			APIGatewayEndpoint: "http://localhost:9750",
+		},
 	}
 
-	return config, nil
-}
+	// Create directories
+	os.MkdirAll(config.ResultsDir, 0755)
+	os.MkdirAll(config.GraphsDir, 0755)
 
-// createDirectories creates necessary directories for results
-func createDirectories(config types.BenchmarkConfig) error {
-	dirs := []string{config.ResultsDir, config.GraphsDir}
+	// Initialize Redis client for microservices communication
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
 
-	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
+	// Test Redis connection
+	ctx := context.Background()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+
+	// Initialize benchmark
+	benchmark := &types.AvalancheBenchmark{
+		Config:      config,
+		RedisClient: redisClient,
+		Results:     make([]types.BenchmarkResult, 0),
+	}
+
+	// Run benchmarks
+	log.Println("📊 Running benchmark test cases...")
+
+	for _, testCase := range config.TestCases {
+		log.Printf("🔄 Running test case: %s", testCase.Name)
+
+		// Run microservices benchmark
+		microResult, err := benchmark.RunMicroservicesBenchmark(testCase)
+		if err != nil {
+			log.Printf("❌ Microservices benchmark failed for %s: %v", testCase.Name, err)
+			continue
 		}
+
+		// Wait between tests
+		time.Sleep(5 * time.Second)
+
+		// Run monolith benchmark
+		monolithResult, err := benchmark.RunMonolithBenchmark(testCase)
+		if err != nil {
+			log.Printf("❌ Monolith benchmark failed for %s: %v", testCase.Name, err)
+			continue
+		}
+
+		// Store results
+		benchmark.AddResult(microResult)
+		benchmark.AddResult(monolithResult)
+
+		// Save intermediate results
+		if err := benchmark.SaveResults(); err != nil {
+			log.Printf("⚠️ Failed to save intermediate results: %v", err)
+		}
+
+		log.Printf("✅ Completed test case: %s", testCase.Name)
+
+		// Wait between test cases
+		time.Sleep(10 * time.Second)
 	}
 
-	return nil
+	// Generate final report and graphs
+	log.Println("📈 Generating benchmark report and graphs...")
+
+	if err := benchmark.GenerateReport(); err != nil {
+		log.Printf("❌ Failed to generate report: %v", err)
+	}
+
+	if err := benchmark.GenerateGraphs(); err != nil {
+		log.Printf("❌ Failed to generate graphs: %v", err)
+	}
+
+	// Print summary
+	benchmark.PrintSummary()
+
+	log.Println("🎉 Benchmark completed successfully!")
 }

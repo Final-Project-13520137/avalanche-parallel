@@ -23,27 +23,25 @@ spec:
           name: postgres
         env:
         - name: POSTGRES_DB
-          value: "avalanche"
+          value: avalanche
         - name: POSTGRES_USER
-          value: "avalanche"
+          value: avalanche
         - name: POSTGRES_PASSWORD
-          value: "avalanche123"
+          value: avalanche123
         - name: PGDATA
           value: "/var/lib/postgresql/data/pgdata"
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "200m"
+            memory: "512Mi"
+            cpu: "250m"
           limits:
             memory: "1Gi"
-            cpu: "1000m"
+            cpu: "500m"
         livenessProbe:
           exec:
             command:
             - pg_isready
             - -U
-            - avalanche
-            - -d
             - avalanche
           initialDelaySeconds: 30
           periodSeconds: 10
@@ -54,8 +52,6 @@ spec:
             command:
             - pg_isready
             - -U
-            - avalanche
-            - -d
             - avalanche
           initialDelaySeconds: 5
           periodSeconds: 5
@@ -86,7 +82,6 @@ spec:
   selector:
     app: postgres
   ports:
-  - name: postgres
-    port: 5432
-    targetPort: 5432
+    - port: 5432
+      targetPort: 5432
   type: ClusterIP 

@@ -1,5 +1,24 @@
 services:
   # Infrastructure
+  postgres:
+    image: postgres:15-alpine
+    container_name: benchmark-postgres
+    environment:
+      POSTGRES_DB: avalanche_benchmark
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - benchmark-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   redis:
     image: redis:7-alpine
     container_name: benchmark-redis
@@ -236,6 +255,8 @@ services:
     restart: unless-stopped
 
 volumes:
+  postgres_data:
+    driver: local
   grafana_data:
     driver: local
 

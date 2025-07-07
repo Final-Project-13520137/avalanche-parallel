@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -111,26 +112,42 @@ func (ab *AvalancheBenchmark) RunMonolithBenchmark(testCase TestCase) (Benchmark
 	// Generate test transactions
 	transactions := ab.GenerateTransactions(testCase)
 
+	// Initialize AvalancheGo client
+	client := avm.NewClient(ab.Config.MonolithEndpoint, "X")
+
 	// Measure system performance
 	latencies := make([]time.Duration, 0, len(transactions))
 	successCount := 0
 	failureCount := 0
 
-	// Execute transactions sequentially (simulating monolith behavior)
+	// Execute transactions sequentially through AvalancheGo
 	for _, tx := range transactions {
 		txStartTime := time.Now()
 
-		// Process transaction through monolith
-		success := ab.ProcessMonolithTransaction(tx)
+		// Convert transaction to AvalancheGo format
+		txBytes, err := json.Marshal(tx)
+		if err != nil {
+			failureCount++
+			continue
+		}
+
+		// Issue transaction to AvalancheGo
+		txID, err := client.IssueTx(txBytes)
+		if err != nil {
+			failureCount++
+			continue
+		}
+
+		// Wait for transaction acceptance
+		status, err := client.GetTxStatus(txID)
+		if err != nil || status != "Accepted" {
+			failureCount++
+		} else {
+			successCount++
+		}
 
 		latency := time.Since(txStartTime)
 		latencies = append(latencies, latency)
-
-		if success {
-			successCount++
-		} else {
-			failureCount++
-		}
 	}
 
 	totalDuration := time.Since(startTime)
@@ -152,11 +169,32 @@ func (ab *AvalancheBenchmark) RunMonolithBenchmark(testCase TestCase) (Benchmark
 	return result, nil
 }
 
-// ProcessMicroservicesTransaction simulates transaction processing in microservices
+// ProcessMicroservicesTransaction processes transaction through microservices architecture
 func (ab *AvalancheBenchmark) ProcessMicroservicesTransaction(tx Transaction) bool {
 	ctx := context.Background()
 
-	// Simulate consensus task
+	// Step 1: Submit to validator worker
+	validationTask := map[string]interface{}{
+		"id":             tx.ID.String(),
+		"type":           "transaction_validation",
+		"transaction_id": tx.ID,
+		"transaction":    tx,
+		"priority":       "high",
+		"timestamp":      time.Now(),
+	}
+
+	validationData, _ := json.Marshal(validationTask)
+	if err := ab.RedisClient.LPush(ctx, "validation_tasks", validationData).Err(); err != nil {
+		return false
+	}
+
+	// Wait for validation result
+	validationResult, err := ab.WaitForResult(ctx, "validation_results", tx.ID.String())
+	if err != nil || !validationResult.Success {
+		return false
+	}
+
+	// Step 2: Submit to consensus worker
 	consensusTask := map[string]interface{}{
 		"id":           tx.ID.String(),
 		"type":         "vertex_validation",
@@ -172,25 +210,15 @@ func (ab *AvalancheBenchmark) ProcessMicroservicesTransaction(tx Transaction) bo
 		return false
 	}
 
-	// Simulate validation task
-	validationTask := map[string]interface{}{
-		"id":             tx.ID.String(),
-		"type":           "transaction_validation",
-		"transaction_id": tx.ID,
-		"transaction":    tx,
-		"signature":      []byte("mock_signature"),
-		"public_key":     []byte("mock_public_key"),
-		"priority":       "high",
-		"timestamp":      time.Now(),
-	}
-
-	validationData, _ := json.Marshal(validationTask)
-	if err := ab.RedisClient.LPush(ctx, "validation_tasks", validationData).Err(); err != nil {
+	// Wait for consensus result
+	consensusResult, err := ab.WaitForResult(ctx, "consensus_results", tx.ID.String())
+	if err != nil || !consensusResult.Success {
 		return false
 	}
 
-	// Simulate DAG state task
+	// Step 3: Submit to DAG state worker
 	dagStateTask := map[string]interface{}{
+		"id":        tx.ID.String(),
 		"type":      "update_dag",
 		"vertex_id": tx.ID.String(),
 		"data":      tx.Data,
@@ -198,30 +226,50 @@ func (ab *AvalancheBenchmark) ProcessMicroservicesTransaction(tx Transaction) bo
 	}
 
 	dagStateData, _ := json.Marshal(dagStateTask)
-	if err := ab.RedisClient.LPush(ctx, "dag_tasks_high", dagStateData).Err(); err != nil {
+	if err := ab.RedisClient.LPush(ctx, "dag_state_tasks", dagStateData).Err(); err != nil {
 		return false
 	}
 
-	// Simulate processing time
-	time.Sleep(time.Duration(rand.Intn(50)+10) * time.Millisecond)
+	// Wait for DAG state update result
+	dagStateResult, err := ab.WaitForResult(ctx, "dag_state_results", tx.ID.String())
+	if err != nil || !dagStateResult.Success {
+		return false
+	}
 
 	return true
 }
 
-// ProcessMonolithTransaction simulates transaction processing in monolith
-func (ab *AvalancheBenchmark) ProcessMonolithTransaction(tx Transaction) bool {
-	// Simulate sequential processing (validation -> consensus -> state update)
+// WaitForResult waits for a task result from Redis
+func (ab *AvalancheBenchmark) WaitForResult(ctx context.Context, resultQueue string, taskID string) (*TaskResult, error) {
+	timeout := time.After(10 * time.Second)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
 
-	// Validation phase
-	time.Sleep(time.Duration(rand.Intn(20)+5) * time.Millisecond)
+	for {
+		select {
+		case <-timeout:
+			return nil, fmt.Errorf("timeout waiting for result")
+		case <-ticker.C:
+			// Check for result
+			result, err := ab.RedisClient.LRange(ctx, resultQueue, 0, -1).Result()
+			if err != nil {
+				continue
+			}
 
-	// Consensus phase
-	time.Sleep(time.Duration(rand.Intn(30)+10) * time.Millisecond)
+			for _, r := range result {
+				var taskResult TaskResult
+				if err := json.Unmarshal([]byte(r), &taskResult); err != nil {
+					continue
+				}
 
-	// State update phase
-	time.Sleep(time.Duration(rand.Intn(15)+5) * time.Millisecond)
-
-	return true
+				if taskResult.TaskID == taskID {
+					// Remove the result from queue
+					ab.RedisClient.LRem(ctx, resultQueue, 1, r)
+					return &taskResult, nil
+				}
+			}
+		}
+	}
 }
 
 // GenerateTransactions creates test transactions for benchmark
