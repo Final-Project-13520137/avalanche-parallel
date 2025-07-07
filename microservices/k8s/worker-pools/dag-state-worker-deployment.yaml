@@ -7,7 +7,7 @@ metadata:
     app: dag-state-worker
     type: worker
 spec:
-  replicas: 3
+  replicas: 5
   selector:
     matchLabels:
       app: dag-state-worker
@@ -31,8 +31,6 @@ spec:
               fieldPath: metadata.name
         - name: REDIS_URL
           value: "redis://redis:6379"
-        - name: POSTGRES_URL
-          value: "postgres://avalanche:avalanche123@postgres:5432/avalanche?sslmode=disable"
         - name: TASK_QUEUE
           value: "dag_state_tasks"
         - name: RESULT_QUEUE
@@ -41,15 +39,27 @@ spec:
           value: "10"
         - name: LOG_LEVEL
           value: "info"
-        - name: PORT
-          value: "8080"
+        - name: METRICS_ENABLED
+          value: "true"
+        - name: METRICS_INTERVAL
+          value: "15s"
+        - name: WORKER_POOL_SIZE
+          value: "5"
+        - name: BATCH_SIZE
+          value: "100"
+        - name: POSTGRES_URL
+          value: "postgres://avalanche:avalanche123@postgres:5432/avalanche?sslmode=disable"
+        - name: CACHE_SIZE
+          value: "1000"
+        - name: CACHE_TTL
+          value: "5m"
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
             memory: "512Mi"
             cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
         livenessProbe:
           httpGet:
             path: /health
@@ -78,6 +88,18 @@ spec:
           name: avalanche-config
       - name: logs
         emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - dag-state-worker
+              topologyKey: "kubernetes.io/hostname"
       restartPolicy: Always
 ---
 apiVersion: v1
@@ -106,8 +128,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: dag-state-worker
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 3
+  maxReplicas: 15
   metrics:
   - type: Resource
     resource:
