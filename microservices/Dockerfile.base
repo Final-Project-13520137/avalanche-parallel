@@ -1,0 +1,32 @@
+FROM golang:1.24-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Install common dependencies
+RUN go get -u github.com/go-redis/redis/v8@v8.11.5 && \
+    go get -u github.com/prometheus/client_golang@v1.16.0 && \
+    go get -u github.com/golang/protobuf/proto@v1.5.3 && \
+    go get -u google.golang.org/protobuf@v1.30.0 && \
+    go get -u golang.org/x/sys@v0.8.0
+
+# Create final image
+FROM golang:1.24-alpine
+
+# Copy dependencies from builder
+COPY --from=builder /go/pkg /go/pkg
+COPY --from=builder /root/.cache/go-build /root/.cache/go-build
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates
+
+WORKDIR /app 

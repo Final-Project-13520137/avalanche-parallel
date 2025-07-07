@@ -1,9 +1,10 @@
-module github.com/Final-Project-13520137/avalanche-parallel/microservices/workers/validator-worker
+module github.com/Final-Project-13520137/avalanche-parallel/microservices/workers/dag-state-worker
 
 go 1.21
 
 require (
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/lib/pq v1.10.9
 	github.com/prometheus/client_golang v1.16.0
 )
 
@@ -20,4 +21,4 @@ require (
 	google.golang.org/protobuf v1.30.0 // indirect
 )
 
-replace github.com/Final-Project-13520137/avalanche-parallel => ../../../
+replace github.com/rogpeppe/go-internal => github.com/rogpeppe/go-internal v1.11.0

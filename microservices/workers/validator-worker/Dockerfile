@@ -1,43 +1,37 @@
-# Multi-stage build for validator-worker
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
-# Install dependencies
+# Install build dependencies
 RUN apk add --no-cache git ca-certificates
 
-WORKDIR /build
-
-# Copy the entire project
-COPY . .
-
-# Set working directory to validator worker
-WORKDIR /build/microservices/workers/validator-worker
-
-# Download dependencies and tidy up modules
-RUN go mod download && go mod tidy
-
-# Build the worker
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o validator-worker ./cmd
-
-# Final stage
-FROM alpine:latest
-
-# Install ca-certificates and curl for health checks
-RUN apk --no-cache add ca-certificates curl
-
+# Set working directory
 WORKDIR /app
 
-# Copy the binary from builder stage
-COPY --from=builder /build/microservices/workers/validator-worker/validator-worker .
+# Copy go mod files
+COPY go.mod go.sum ./
 
-# Create log directory
-RUN mkdir -p /var/log
+# Download dependencies
+RUN go mod download && \
+    go get -u github.com/go-redis/redis/v8@v8.11.5 && \
+    go get -u github.com/prometheus/client_golang@v1.16.0 && \
+    go get -u github.com/golang/protobuf/proto@v1.5.3 && \
+    go get -u google.golang.org/protobuf@v1.30.0 && \
+    go get -u golang.org/x/sys@v0.8.0 && \
+    go mod tidy
+
+# Copy source code
+COPY . .
+
+# Build
+RUN CGO_ENABLED=0 GOOS=linux go build -o validator-worker cmd/main.go
+
+# Create final image
+FROM alpine:latest
+
+# Copy binary from builder
+COPY --from=builder /app/validator-worker .
 
 # Expose metrics port
-EXPOSE 8080
+EXPOSE 8081
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
-
-# Run the worker
+# Run
 CMD ["./validator-worker"]
