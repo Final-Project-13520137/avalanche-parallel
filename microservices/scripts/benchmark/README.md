@@ -1,391 +1,240 @@
-# Avalanche Microservices vs Monolith Benchmark
+# 🚀 Avalanche Parallel Benchmark Suite
 
-Sistem benchmark komprehensif untuk membandingkan performa Avalanche blockchain menggunakan arsitektur microservices paralel vs monolith tradisional.
+Benchmark suite untuk mengukur performa sistem Avalanche Parallel dengan worker pools yang mendukung scaling preservation.
 
-## 🎯 Tujuan Benchmark
+## 📋 Daftar Isi
+- [Overview](#-overview)
+- [Fitur](#-fitur)
+- [Penggunaan](#-penggunaan)
+- [Worker Scaling](#-worker-scaling)
+- [Testing](#-testing)
+- [Troubleshooting](#-troubleshooting)
 
-Benchmark ini bertujuan untuk:
-- Membandingkan throughput (TPS) antara arsitektur microservices dan monolith
-- Menganalisis latency dan response time pada berbagai beban kerja
-- Mengukur penggunaan resource (CPU, Memory, Network)
-- Mengevaluasi skalabilitas pada berbagai volume transaksi
-- Memberikan rekomendasi arsitektur berdasarkan hasil pengujian
+## 🔍 Overview
 
-## 📊 Test Cases
+Suite ini menyediakan tools untuk:
+1. Benchmarking performa sistem Avalanche Parallel
+2. Mempertahankan konfigurasi worker pools saat benchmark
+3. Mengukur throughput dan latency pada berbagai skala
+4. Membandingkan performa monolith vs microservices
 
-Benchmark mencakup 4 skenario pengujian dengan worker nodes paralel:
+## ✨ Fitur
 
-1. **Small Load**: 
-   - 1,000 transaksi dengan 10 concurrent users
-   - 3 consensus workers, 3 validator workers, 3 DAG state workers
+### Worker Scaling Preservation
+- Mempertahankan jumlah worker yang sudah di-scale
+- Tidak mereset worker count ke default
+- Mendukung custom scaling configuration
+- Deteksi otomatis worker yang aktif
 
-2. **Medium Load**: 
-   - 5,000 transaksi dengan 25 concurrent users
-   - 4-5 consensus workers, 4-5 validator workers, 4-5 DAG state workers
+### Benchmark Capabilities
+- Throughput testing (TPS)
+- Latency measurement
+- Resource utilization tracking
+- Automatic report generation
 
-3. **Large Load**: 
-   - 10,000 transaksi dengan 50 concurrent users
-   - 5-7 consensus workers, 5-7 validator workers, 5-7 DAG state workers
+### Cross-Platform Support
+- Linux/macOS: `run-benchmark.sh`
+- Windows: `run-benchmark.ps1`
+- Docker environment detection
+- Kubernetes compatibility
 
-4. **High Load**: 
-   - 20,000 transaksi dengan 100 concurrent users
-   - 8-10 consensus workers, 8-10 validator workers, 8-10 DAG state workers
+## 🚀 Penggunaan
 
-## 🛠️ Arsitektur Paralel
-
-### Worker Node Configuration
-
-```yaml
-# Base Configuration per Worker Type
-replicas: 5  # Base replicas
-resources:
-  requests:
-    memory: "512Mi"
-    cpu: "500m"
-  limits:
-    memory: "1Gi"
-    cpu: "1000m"
-
-# Auto-scaling
-minReplicas: 3
-maxReplicas: 15
-metrics:
-  - cpu: 70%
-  - memory: 80%
-
-# Worker Pool
-env:
-  - WORKER_POOL_SIZE: "5"
-  - BATCH_SIZE: "100"
-  - METRICS_ENABLED: "true"
-  - METRICS_INTERVAL: "15s"
-```
-
-### Pod Distribution
-
-```yaml
-affinity:
-  podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchExpressions:
-              - key: app
-                operator: In
-                values:
-                  - [worker-type]
-          topologyKey: "kubernetes.io/hostname"
-```
-
-## 🚀 Quick Start
-
-### Option 1: Automated Setup (Recommended)
+### Linux/macOS
 ```bash
-# Clone repository
-git clone <repository-url>
-cd avalanche-parallel/microservices/scripts/benchmark
+# Basic usage (preserves existing worker scale)
+./run-benchmark.sh
 
-# Run automated setup and benchmark
-chmod +x setup-and-run.sh
-./setup-and-run.sh
+# Run with specific worker counts (if no workers running)
+VALIDATOR_WORKERS=5 CONSENSUS_WORKERS=3 DAG_STATE_WORKERS=2 ./run-benchmark.sh
+
+# Run with cleanup after completion
+CLEANUP_AFTER=true ./run-benchmark.sh
 ```
 
-### Option 2: Manual Setup
+### Windows PowerShell
+```powershell
+# Basic usage
+.\run-benchmark.ps1
 
-#### 1. Install Dependencies
-```bash
-# Install Python dependencies
-pip3 install -r requirements.txt
+# Run with custom defaults
+.\run-benchmark.ps1 -DefaultValidatorWorkers 5 -DefaultConsensusWorkers 3
 
-# Setup Go dependencies
-go mod tidy
-```
-
-#### 2. Setup Local Registry & Deploy Workers
-```bash
-# Start local registry
-docker run -d -p 5000:5000 --restart=always --name registry registry:2
-
-# Deploy worker nodes
-./run-avalanche-benchmark.sh --build --registry localhost:5000
-```
-
-#### 3. Verify Worker Deployment
-```bash
-# Check worker nodes
-kubectl get pods -n avalanche-parallel -l type=worker
-
-# Verify worker health
-./test-setup.sh
-```
-
-## 📁 File Structure
-
-```
-scripts/benchmark/
-├── README.md                           # Dokumentasi ini
-├── setup-and-run.sh                    # Setup otomatis dan run benchmark
-├── run-avalanche-benchmark.sh          # Script utama Linux/macOS
-├── run-avalanche-benchmark.ps1         # Script utama Windows
-├── avalanche-comparison-benchmark.go   # Core benchmark logic dengan worker support
-├── generate-benchmark-graphs.py        # Graph generator
-├── go.mod                              # Go dependencies
-├── requirements.txt                    # Python dependencies
-└── results/                            # Output directory
-    ├── benchmark-results/              # JSON dan CSV data
-    └── benchmark-graphs/               # PNG graphs
-```
-
-## 🔧 Configuration Options
-
-### Benchmark Parameters
-
-Script mendukung berbagai opsi konfigurasi:
-
-```bash
-# Skip tertentu steps
-./run-avalanche-benchmark.sh --skip-setup
-./run-avalanche-benchmark.sh --skip-microservices
-./run-avalanche-benchmark.sh --skip-monolith
-
-# Custom registry
-./run-avalanche-benchmark.sh --registry your-registry.com:5000
-
-# Skip graph generation
-./run-avalanche-benchmark.sh --no-graphs
-
-# Skip cleanup
-./run-avalanche-benchmark.sh --no-cleanup
+# Run with cleanup
+.\run-benchmark.ps1 -ForceCleanup
 ```
 
 ### Environment Variables
+```bash
+# Optional configuration
+export BENCHMARK_RESULTS_DIR="./results"    # Results directory
+export BENCHMARK_GRAPHS_DIR="./graphs"      # Graphs directory
+export CLEANUP_AFTER=true                   # Cleanup after benchmark
+export PRESERVE_SCALE=true                  # Preserve worker scale (default: true)
+```
+
+## 📊 Worker Scaling
+
+### Supported Configurations
+
+```
+Worker Type    | Minimum | Maximum | Default
+---------------|---------|---------|--------
+Validator      | 3       | 15      | 3
+Consensus      | 2       | 10      | 2
+DAG+State      | 2       | 8       | 2
+```
+
+### Scaling Behavior
+
+1. **Existing Workers**
+   ```bash
+   # If workers already running:
+   - Detects current worker counts
+   - Preserves existing scale
+   - Uses current configuration
+   ```
+
+2. **No Workers Running**
+   ```bash
+   # If no workers detected:
+   - Uses default counts
+   - Or uses specified counts
+   - Starts fresh configuration
+   ```
+
+3. **Mixed State**
+   ```bash
+   # If some workers running:
+   - Preserves running worker counts
+   - Uses defaults for missing types
+   - Maintains partial configuration
+   ```
+
+### Scaling Examples
 
 ```bash
-export BENCHMARK_RESULTS_DIR="/custom/results/path"
-export BENCHMARK_GRAPHS_DIR="/custom/graphs/path"
-export MICROSERVICES_ENDPOINT="http://localhost:30080"
-export MONOLITH_ENDPOINT="http://localhost:9650"
+# Scale up before benchmark
+docker-compose -f docker-compose.worker-pools.yml up -d \
+  --scale validator-worker=8 \
+  --scale consensus-worker=5 \
+  --scale dag-state-worker=3
+
+# Run benchmark (will preserve 8:5:3 configuration)
+./run-benchmark.sh
+
+# Scale down after benchmark
+docker-compose -f docker-compose.worker-pools.yml up -d \
+  --scale validator-worker=4 \
+  --scale consensus-worker=3 \
+  --scale dag-state-worker=2
 ```
 
-## 📈 Output dan Results
+## 🧪 Testing
 
-### Generated Files
+### Test Scaling Preservation
 
-#### 1. Raw Data
-- `benchmark_results_YYYYMMDD_HHMMSS.json` - Raw benchmark data
-- `throughput_comparison_YYYYMMDD_HHMMSS.csv` - Throughput metrics
-- `latency_comparison_YYYYMMDD_HHMMSS.csv` - Latency metrics
-- `resource_usage_YYYYMMDD_HHMMSS.csv` - Resource utilization
-- `worker_metrics.csv` - Worker node performance data
-- `queue_metrics.csv` - Queue length monitoring data
+```bash
+# Run scaling preservation test
+./test-scaling-preservation.sh
 
-#### 2. Reports
-- `final_report_YYYYMMDD_HHMMSS.md` - Comprehensive analysis report
-- `benchmark_report_YYYYMMDD_HHMMSS.md` - Detailed technical report
-
-#### 3. Visualizations
-- `throughput_comparison.png` - TPS comparison chart
-- `latency_comparison.png` - Latency analysis
-- `resource_usage_comparison.png` - CPU/Memory usage
-- `scalability_analysis.png` - Scalability characteristics
-- `speedup_analysis.png` - Performance improvement factors
-- `performance_summary_dashboard.png` - Comprehensive dashboard
-- `worker_performance.png` - Worker node performance graphs
-- `queue_analysis.png` - Task queue analysis
-
-### Sample Output
-
-```
-📊 BENCHMARK SUMMARY (WITH WORKER NODES)
-==================================================
-Test Case                    | Architecture  | Workers | TPS    | Avg Latency (ms) | CPU % | Memory (MB)
-Small_Load_1K_Transactions  | microservices| 3x3     | 245.67 | 12.3             | 45.2  | 892.1
-Small_Load_1K_Transactions  | monolith     | N/A     | 189.34 | 18.7             | 67.8  | 634.5
-Medium_Load_5K_Transactions | microservices| 5x3     | 412.89 | 15.6             | 52.1  | 1024.3
-Medium_Load_5K_Transactions | monolith     | N/A     | 298.45 | 24.2             | 78.9  | 745.2
-Large_Load_10K_Transactions | microservices| 7x3     | 789.45 | 18.2             | 64.3  | 1256.7
-Large_Load_10K_Transactions | monolith     | N/A     | 456.78 | 35.6             | 89.2  | 892.4
-High_Load_20K_Transactions  | microservices| 10x3    | 1245.67| 22.4             | 72.5  | 1512.3
-High_Load_20K_Transactions  | monolith     | N/A     | 678.90 | 48.9             | 94.7  | 1024.8
+# Test specific configurations
+./test-scaling-preservation.sh --config minimal  # Tests 3:2:2
+./test-scaling-preservation.sh --config maximal  # Tests 15:10:8
+./test-scaling-preservation.sh --config custom   # Tests 8:5:3
 ```
 
-## 🔍 Troubleshooting
+### Verify Worker Counts
+
+```bash
+# Check current worker counts
+./get-worker-count.sh
+
+# Check specific worker type
+./get-worker-count.sh validator
+./get-worker-count.sh consensus
+./get-worker-count.sh dag-state
+```
+
+## 🔧 Troubleshooting
 
 ### Common Issues
 
-#### 1. Worker Node Issues
+1. **Workers Not Preserved**
+   ```bash
+   # Check if services are running
+   docker-compose ps
+   
+   # Verify worker detection
+   ./get-worker-count.sh
+   
+   # Force preserve scale
+   export PRESERVE_SCALE=true
+   ```
+
+2. **Incorrect Worker Counts**
+   ```bash
+   # Clean up stale containers
+   docker-compose down
+   
+   # Start fresh with specific scale
+   docker-compose up -d --scale validator-worker=5
+   ```
+
+3. **Benchmark Failures**
+   ```bash
+   # Enable debug logging
+   export LOG_LEVEL=debug
+   
+   # Run with verbose output
+   ./run-benchmark.sh --verbose
+   ```
+
+### Debug Tools
+
 ```bash
-# Check worker status
-kubectl get pods -n avalanche-parallel -l type=worker
+# Show current configuration
+./get-worker-count.sh --verbose
 
-# Check worker logs
-kubectl logs -l type=worker -n avalanche-parallel
+# Test scaling preservation
+./test-scaling-preservation.sh --debug
 
-# Restart workers
-kubectl rollout restart deployment -n avalanche-parallel -l type=worker
+# Monitor worker status
+watch -n 1 ./get-worker-count.sh
 ```
 
-#### 2. Redis Queue Issues
-```bash
-# Check queue lengths
-kubectl exec -n avalanche-parallel svc/redis -- redis-cli llen consensus_tasks
-kubectl exec -n avalanche-parallel svc/redis -- redis-cli llen validation_tasks
-kubectl exec -n avalanche-parallel svc/redis -- redis-cli llen dag_state_tasks
+## 📊 Results
 
-# Clear queues if needed
-kubectl exec -n avalanche-parallel svc/redis -- redis-cli flushall
+Benchmark results akan disimpan di:
+- `benchmark-results/`: Raw data dan metrics
+- `benchmark-graphs/`: Generated visualizations
+- `benchmark-reports/`: Analysis reports
+
+### Example Output
 ```
+📊 Worker Pool Status:
+  - Validator Workers: 8 (preserved from 8)
+  - Consensus Workers: 5 (preserved from 5)
+  - DAG+State Workers: 3 (preserved from 3)
+  - Total Active Workers: 16
 
-#### 3. Resource Issues
-```bash
-# Check resource usage
-kubectl top pods -n avalanche-parallel
-
-# Scale workers
-kubectl scale deployment consensus-worker -n avalanche-parallel --replicas=5
-kubectl scale deployment validator-worker -n avalanche-parallel --replicas=5
-kubectl scale deployment dag-state-worker -n avalanche-parallel --replicas=5
-```
-
-### Performance Optimization
-
-#### Worker Node Tuning
-- Adjust `WORKER_POOL_SIZE` based on CPU cores
-- Tune `BATCH_SIZE` for optimal throughput
-- Configure proper resource limits
-- Enable metrics for monitoring
-
-#### Queue Management
-- Monitor queue lengths
-- Adjust worker counts based on queue depth
-- Set appropriate timeout values
-- Configure retry policies
-
-## 📊 Interpreting Results
-
-### Key Metrics
-
-#### 1. Throughput (TPS)
-- **Higher is better**
-- Measures transactions processed per second
-- Should scale with worker count
-
-#### 2. Latency (ms)
-- **Lower is better**
-- Measures response time
-- Should remain stable with more workers
-
-#### 3. Worker Utilization
-- **Balanced is better**
-- CPU usage per worker
-- Memory usage per worker
-- Queue distribution
-
-#### 4. Scaling Efficiency
-- **Higher is better**
-- Throughput increase per worker
-- Resource usage efficiency
-- Queue processing rate
-
-### Recommendations
-
-#### Choose Microservices When:
-- High transaction volume (>5K TPS)
-- Need horizontal scalability
-- Complex processing requirements
-- Team expertise in distributed systems
-- Can manage multiple worker nodes
-
-#### Choose Monolith When:
-- Simple use cases (<1K TPS)
-- Limited operational complexity
-- Small development team
-- Quick deployment needed
-- Resource constraints
-
-## 🔬 Advanced Usage
-
-### Custom Worker Configuration
-
-Edit worker deployment YAML:
-```yaml
-spec:
-  replicas: 7  # Increase base replicas
-  template:
-    spec:
-      containers:
-        - name: worker
-          env:
-            - name: WORKER_POOL_SIZE
-              value: "8"
-            - name: BATCH_SIZE
-              value: "200"
-```
-
-### Custom Test Cases
-
-Edit `avalanche-comparison-benchmark.go`:
-```go
-testCases: []TestCase{
-    {
-        Name:             "Custom_High_Load",
-        TransactionCount: 15000,
-        ConcurrentUsers:  75,
-        TransactionSize:  1536,
-        WorkerCount:     10,
-        BatchSize:       150,
-    },
-}
-```
-
-### Integration with CI/CD
-
-```yaml
-# GitHub Actions example
-name: Avalanche Benchmark
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  benchmark:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Setup Kubernetes
-      uses: helm/kind-action@v1.5.0
-    
-    - name: Deploy Workers
-      run: |
-        cd microservices/scripts/benchmark
-        ./setup-and-run.sh --registry localhost:5000
-    
-    - name: Run Benchmark
-      run: ./run-avalanche-benchmark.sh
-    
-    - name: Upload Results
-      uses: actions/upload-artifact@v3
-      with:
-        name: benchmark-results
-        path: microservices/benchmark-results/
+🔍 Performance Metrics:
+  - Throughput: 25,000 TPS
+  - Avg Latency: 45ms
+  - Error Rate: 0.01%
+  - CPU Usage: 75%
 ```
 
 ## 🤝 Contributing
 
 1. Fork repository
 2. Create feature branch
-3. Add/modify benchmark scenarios
-4. Test thoroughly
-5. Submit pull request
+3. Add/modify tests
+4. Submit pull request
 
 ## 📝 License
 
-[Add license information]
+MIT License - see LICENSE file for details
 
 ## 📞 Support
 

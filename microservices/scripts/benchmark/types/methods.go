@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/olekukonko/tablewriter"
 )
@@ -132,15 +133,15 @@ func (ab *AvalancheBenchmark) RunMonolithBenchmark(testCase TestCase) (Benchmark
 		}
 
 		// Issue transaction to AvalancheGo
-		txID, err := client.IssueTx(txBytes)
+		txID, err := client.IssueTx(context.Background(), txBytes)
 		if err != nil {
 			failureCount++
 			continue
 		}
 
 		// Wait for transaction acceptance
-		status, err := client.GetTxStatus(txID)
-		if err != nil || status != "Accepted" {
+		status, err := client.GetTxStatus(context.Background(), txID)
+		if err != nil || status != choices.Accepted {
 			failureCount++
 		} else {
 			successCount++
