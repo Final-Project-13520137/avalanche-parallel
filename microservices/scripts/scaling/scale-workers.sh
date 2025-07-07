@@ -1,122 +1,108 @@
 #!/bin/bash
 # Script for scaling worker nodes
 
-# Colors
-RED='\e[31m'
-GREEN='\e[32m'
-BLUE='\e[36m'
-NC='\e[0m' # No Color
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
 # Default values
-WORKER_TYPE=""
-COUNT=0
-MONITOR=false
+MIN_CONSENSUS_WORKERS=2
+MAX_CONSENSUS_WORKERS=10
+MIN_VALIDATOR_WORKERS=3
+MAX_VALIDATOR_WORKERS=15
+MIN_DAG_STATE_WORKERS=2
+MAX_DAG_STATE_WORKERS=8
 
 # Get script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../" && pwd)"
 
-# Function to display usage
-usage() {
-    echo "Usage: $0 --type <validator|consensus|dag-state> --count <number> [--monitor]"
+# Function to scale workers
+scale_workers() {
+    local worker_type=$1
+    local count=$2
+    local min_count=$3
+    local max_count=$4
+
+    if [ $count -lt $min_count ]; then
+        echo -e "${RED}Error: Cannot scale $worker_type below minimum of $min_count workers${NC}"
+        return 1
+    fi
+
+    if [ $count -gt $max_count ]; then
+        echo -e "${RED}Error: Cannot scale $worker_type above maximum of $max_count workers${NC}"
+        return 1
+    fi
+
+    echo -e "${YELLOW}Scaling $worker_type to $count workers...${NC}"
+    docker-compose -f "$PROJECT_ROOT/docker-compose.worker-pools.yml" up -d --scale $worker_type=$count
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Successfully scaled $worker_type to $count workers${NC}"
+    else
+        echo -e "${RED}Failed to scale $worker_type${NC}"
+        return 1
+    fi
+}
+
+# Function to show current scaling
+show_scaling() {
+    echo -e "${YELLOW}Current worker pool sizes:${NC}"
+    echo "Consensus Workers: $(docker-compose -f "$PROJECT_ROOT/docker-compose.worker-pools.yml" ps -q consensus-worker | wc -l)"
+    echo "Validator Workers: $(docker-compose -f "$PROJECT_ROOT/docker-compose.worker-pools.yml" ps -q validator-worker | wc -l)"
+    echo "DAG State Workers: $(docker-compose -f "$PROJECT_ROOT/docker-compose.worker-pools.yml" ps -q dag-state-worker | wc -l)"
+}
+
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 [command] [options]"
     echo
-    echo "Options:"
-    echo "  --type      Type of worker (validator, consensus, or dag-state)"
-    echo "  --count     Number of worker instances (1-100)"
-    echo "  --monitor   Monitor worker status after scaling"
-    exit 1
+    echo "Commands:"
+    echo "  scale <worker-type> <count>  Scale specific worker type to count"
+    echo "  status                       Show current scaling status"
+    echo "  help                         Show this help message"
+    echo
+    echo "Worker Types:"
+    echo "  consensus-worker     (min: $MIN_CONSENSUS_WORKERS, max: $MAX_CONSENSUS_WORKERS)"
+    echo "  validator-worker    (min: $MIN_VALIDATOR_WORKERS, max: $MAX_VALIDATOR_WORKERS)"
+    echo "  dag-state-worker    (min: $MIN_DAG_STATE_WORKERS, max: $MAX_DAG_STATE_WORKERS)"
 }
 
-# Parse arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --type)
-            WORKER_TYPE="$2"
-            shift 2
-            ;;
-        --count)
-            COUNT="$2"
-            shift 2
-            ;;
-        --monitor)
-            MONITOR=true
-            shift
-            ;;
-        *)
-            echo -e "${RED}Error: Unknown option $1${NC}"
-            usage
-            ;;
-    esac
-done
+# Main script
+case "$1" in
+    scale)
+        if [ -z "$2" ] || [ -z "$3" ]; then
+            show_usage
+            exit 1
+        fi
 
-# Validate arguments
-if [[ -z "$WORKER_TYPE" ]]; then
-    echo -e "${RED}Error: Worker type must be specified${NC}"
-    usage
-fi
-
-if [[ ! "$WORKER_TYPE" =~ ^(validator|consensus|dag-state)$ ]]; then
-    echo -e "${RED}Error: Invalid worker type. Must be validator, consensus, or dag-state${NC}"
-    usage
-fi
-
-if [[ ! "$COUNT" =~ ^[0-9]+$ ]] || [ "$COUNT" -lt 1 ] || [ "$COUNT" -gt 100 ]; then
-    echo -e "${RED}Error: Count must be a number between 1 and 100${NC}"
-    usage
-fi
-
-# Function to check if Docker is running
-check_docker() {
-    if ! docker info > /dev/null 2>&1; then
-        echo -e "${RED}Error: Docker is not running${NC}"
+        case "$2" in
+            consensus-worker)
+                scale_workers "$2" "$3" $MIN_CONSENSUS_WORKERS $MAX_CONSENSUS_WORKERS
+                ;;
+            validator-worker)
+                scale_workers "$2" "$3" $MIN_VALIDATOR_WORKERS $MAX_VALIDATOR_WORKERS
+                ;;
+            dag-state-worker)
+                scale_workers "$2" "$3" $MIN_DAG_STATE_WORKERS $MAX_DAG_STATE_WORKERS
+                ;;
+            *)
+                echo -e "${RED}Error: Unknown worker type $2${NC}"
+                show_usage
+                exit 1
+                ;;
+        esac
+        ;;
+    status)
+        show_scaling
+        ;;
+    help|--help|-h)
+        show_usage
+        ;;
+    *)
+        show_usage
         exit 1
-    fi
-}
-
-# Function to check if docker-compose file exists
-check_compose_file() {
-    if [ ! -f "$PROJECT_ROOT/docker-compose.worker-pools.yml" ]; then
-        echo -e "${RED}Error: docker-compose.worker-pools.yml not found in $PROJECT_ROOT${NC}"
-        exit 1
-    fi
-}
-
-# Format worker type for docker-compose service name
-case "$WORKER_TYPE" in
-    "validator")
-        SERVICE_NAME="validator-worker"
         ;;
-    "consensus")
-        SERVICE_NAME="consensus-worker"
-        ;;
-    "dag-state")
-        SERVICE_NAME="dag-state-worker"
-        ;;
-esac
-
-# Validate environment
-check_docker
-check_compose_file
-
-echo -e "${BLUE}Scaling $SERVICE_NAME to $COUNT instances...${NC}"
-
-# Scale workers
-if ! docker-compose -f "$PROJECT_ROOT/docker-compose.worker-pools.yml" up -d --scale "$SERVICE_NAME=$COUNT" --no-recreate; then
-    echo -e "${RED}Error: Failed to scale workers${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}Successfully scaled $SERVICE_NAME to $COUNT instances${NC}"
-
-# Monitor if requested
-if [ "$MONITOR" = true ]; then
-    echo -e "${BLUE}Monitoring worker status...${NC}"
-    while true; do
-        clear
-        echo -e "${BLUE}Current $SERVICE_NAME status:${NC}"
-        docker-compose -f "$PROJECT_ROOT/docker-compose.worker-pools.yml" ps "$SERVICE_NAME"
-        echo
-        docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}" --no-stream | grep "$SERVICE_NAME"
-        sleep 5
-    done
-fi 
+esac 

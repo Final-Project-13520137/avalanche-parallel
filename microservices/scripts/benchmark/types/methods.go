@@ -174,13 +174,14 @@ func (ab *AvalancheBenchmark) ProcessMicroservicesTransaction(tx Transaction) bo
 	ctx := context.Background()
 
 	// Step 1: Submit to validator worker
+	validationStartTime := time.Now()
 	validationTask := map[string]interface{}{
 		"id":             tx.ID.String(),
 		"type":           "transaction_validation",
 		"transaction_id": tx.ID,
 		"transaction":    tx,
 		"priority":       "high",
-		"timestamp":      time.Now(),
+		"timestamp":      validationStartTime,
 	}
 
 	validationData, _ := json.Marshal(validationTask)
@@ -190,11 +191,13 @@ func (ab *AvalancheBenchmark) ProcessMicroservicesTransaction(tx Transaction) bo
 
 	// Wait for validation result
 	validationResult, err := ab.WaitForResult(ctx, "validation_results", tx.ID.String())
+	validationEndTime := time.Now()
 	if err != nil || !validationResult.Success {
 		return false
 	}
 
 	// Step 2: Submit to consensus worker
+	consensusStartTime := time.Now()
 	consensusTask := map[string]interface{}{
 		"id":           tx.ID.String(),
 		"type":         "vertex_validation",
@@ -202,7 +205,7 @@ func (ab *AvalancheBenchmark) ProcessMicroservicesTransaction(tx Transaction) bo
 		"parent_ids":   []ids.ID{},
 		"transactions": []Transaction{tx},
 		"priority":     "high",
-		"timestamp":    time.Now(),
+		"timestamp":    consensusStartTime,
 	}
 
 	consensusData, _ := json.Marshal(consensusTask)
@@ -212,17 +215,20 @@ func (ab *AvalancheBenchmark) ProcessMicroservicesTransaction(tx Transaction) bo
 
 	// Wait for consensus result
 	consensusResult, err := ab.WaitForResult(ctx, "consensus_results", tx.ID.String())
+	consensusEndTime := time.Now()
 	if err != nil || !consensusResult.Success {
 		return false
 	}
 
 	// Step 3: Submit to DAG state worker
+	stateUpdateStartTime := time.Now()
 	dagStateTask := map[string]interface{}{
 		"id":        tx.ID.String(),
 		"type":      "update_dag",
 		"vertex_id": tx.ID.String(),
 		"data":      tx.Data,
 		"priority":  "high",
+		"timestamp": stateUpdateStartTime,
 	}
 
 	dagStateData, _ := json.Marshal(dagStateTask)
@@ -232,8 +238,19 @@ func (ab *AvalancheBenchmark) ProcessMicroservicesTransaction(tx Transaction) bo
 
 	// Wait for DAG state update result
 	dagStateResult, err := ab.WaitForResult(ctx, "dag_state_results", tx.ID.String())
+	stateUpdateEndTime := time.Now()
 	if err != nil || !dagStateResult.Success {
 		return false
+	}
+
+	// Record timing information
+	tx.Metrics = &TransactionMetrics{
+		ValidationStartTime:  validationStartTime,
+		ValidationEndTime:    validationEndTime,
+		ConsensusStartTime:   consensusStartTime,
+		ConsensusEndTime:     consensusEndTime,
+		StateUpdateStartTime: stateUpdateStartTime,
+		StateUpdateEndTime:   stateUpdateEndTime,
 	}
 
 	return true
@@ -338,21 +355,46 @@ func (ab *AvalancheBenchmark) CalculateLatencyMetrics(result *BenchmarkResult, l
 
 // CalculateSystemMetrics simulates system resource usage
 func (ab *AvalancheBenchmark) CalculateSystemMetrics(result *BenchmarkResult) {
-	// Simulate CPU usage based on architecture and load
+	// Mengukur CPU usage menggunakan psutil atau metrics dari container
+	cpuPercent := 0.0
+	memoryMB := 0.0
+	networkMB := 0.0
+
 	if result.Architecture == "microservices" {
-		result.CPUUsagePercent = float64(rand.Intn(30) + 40)     // 40-70%
-		result.MemoryUsageMB = float64(rand.Intn(500) + 800)     // 800-1300MB
-		result.NetworkBandwidthMB = float64(rand.Intn(50) + 100) // 100-150MB
+		// Mengambil metrics dari worker pools
+		metrics, err := ab.GetWorkerPoolMetrics()
+		if err != nil {
+			log.Printf("Warning: Failed to get worker pool metrics: %v", err)
+			return
+		}
+
+		// Menghitung total penggunaan resources dari semua workers
+		for _, worker := range metrics.Workers {
+			cpuPercent += worker.CPUPercent
+			memoryMB += float64(worker.MemoryUsageMB)
+			networkMB += float64(worker.NetworkBandwidthMB)
+		}
 	} else {
-		result.CPUUsagePercent = float64(rand.Intn(40) + 60)    // 60-100%
-		result.MemoryUsageMB = float64(rand.Intn(300) + 500)    // 500-800MB
-		result.NetworkBandwidthMB = float64(rand.Intn(30) + 50) // 50-80MB
+		// Mengambil metrics dari node monolith
+		metrics, err := ab.GetMonolithMetrics()
+		if err != nil {
+			log.Printf("Warning: Failed to get monolith metrics: %v", err)
+			return
+		}
+
+		cpuPercent = metrics.CPUPercent
+		memoryMB = float64(metrics.MemoryUsageMB)
+		networkMB = float64(metrics.NetworkBandwidthMB)
 	}
 
-	// Simulate processing times
-	result.ConsensusTime = time.Duration(rand.Intn(100)+50) * time.Millisecond
-	result.ValidationTime = time.Duration(rand.Intn(50)+20) * time.Millisecond
-	result.StateUpdateTime = time.Duration(rand.Intn(30)+10) * time.Millisecond
+	result.CPUUsagePercent = cpuPercent
+	result.MemoryUsageMB = memoryMB
+	result.NetworkBandwidthMB = networkMB
+
+	// Mengukur waktu pemrosesan yang sebenarnya
+	result.ConsensusTime = result.ConsensusEndTime.Sub(result.ConsensusStartTime)
+	result.ValidationTime = result.ValidationEndTime.Sub(result.ValidationStartTime)
+	result.StateUpdateTime = result.StateUpdateEndTime.Sub(result.StateUpdateStartTime)
 }
 
 // AddResult safely adds a result to the collection
@@ -370,15 +412,32 @@ func (ab *AvalancheBenchmark) SaveResults() error {
 	timestamp := time.Now().Format("20060102_150405")
 	filename := filepath.Join(ab.Config.ResultsDir, fmt.Sprintf("benchmark_results_%s.json", timestamp))
 
-	file, err := os.Create(filename)
+	log.Printf("📝 Saving results to: %s", filename)
+	log.Printf("📊 Number of results to save: %d", len(ab.Results))
+
+	// Create the directory if it doesn't exist
+	if err := os.MkdirAll(ab.Config.ResultsDir, 0777); err != nil {
+		log.Printf("❌ Failed to create results directory: %v", err)
+		return fmt.Errorf("failed to create results directory: %v", err)
+	}
+
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	if err != nil {
-		return err
+		log.Printf("❌ Failed to create results file: %v", err)
+		return fmt.Errorf("failed to create results file: %v", err)
 	}
 	defer file.Close()
 
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(ab.Results)
+
+	if err := encoder.Encode(ab.Results); err != nil {
+		log.Printf("❌ Failed to encode results: %v", err)
+		return fmt.Errorf("failed to encode results: %v", err)
+	}
+
+	log.Printf("✅ Successfully saved %d results to %s", len(ab.Results), filename)
+	return nil
 }
 
 // GenerateReport creates a detailed benchmark report
