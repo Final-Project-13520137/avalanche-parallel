@@ -1,0 +1,5 @@
+TestCase,TransactionCount,Microservices_TPS,Monolith_TPS,Speedup
+Small_Load_1K_Transactions,1000,268.31,19.12,14.03
+Medium_Load_5K_Transactions,5000,662.44,19.25,34.41
+Large_Load_10K_Transactions,10000,1315.14,19.29,68.17
+High_Load_20K_Transactions,20000,2600.45,19.28,134.91

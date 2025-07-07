@@ -1,0 +1,58 @@
+[
+  {
+    "test_case": {
+      "name": "Small_Load_1K_Transactions",
+      "transaction_count": 1000,
+      "concurrent_users": 10,
+      "transaction_size_bytes": 256,
+      "transaction_type": "transfer",
+      "complexity_factor": 1
+    },
+    "architecture": "microservices",
+    "total_transactions": 1000,
+    "successful_transactions": 1000,
+    "failed_transactions": 0,
+    "total_duration_ms": 3736963609,
+    "average_latency_ms": 35550487,
+    "median_latency_ms": 34893422,
+    "p95_latency_ms": 58406209,
+    "p99_latency_ms": 68843407,
+    "throughput_tps": 267.59693286593097,
+    "cpu_usage_percent": 52,
+    "memory_usage_mb": 942,
+    "network_bandwidth_mb": 130,
+    "error_rate_percent": 0,
+    "consensus_time_ms": 74000000,
+    "validation_time_ms": 58000000,
+    "state_update_time_ms": 11000000,
+    "timestamp": "2025-07-07T21:50:14.696538921+07:00"
+  },
+  {
+    "test_case": {
+      "name": "Small_Load_1K_Transactions",
+      "transaction_count": 1000,
+      "concurrent_users": 10,
+      "transaction_size_bytes": 256,
+      "transaction_type": "transfer",
+      "complexity_factor": 1
+    },
+    "architecture": "monolith",
+    "total_transactions": 1000,
+    "successful_transactions": 1000,
+    "failed_transactions": 0,
+    "total_duration_ms": 51707777630,
+    "average_latency_ms": 51705492,
+    "median_latency_ms": 51712422,
+    "p95_latency_ms": 70063993,
+    "p99_latency_ms": 75603234,
+    "throughput_tps": 19.339450385116077,
+    "cpu_usage_percent": 73,
+    "memory_usage_mb": 729,
+    "network_bandwidth_mb": 78,
+    "error_rate_percent": 0,
+    "consensus_time_ms": 65000000,
+    "validation_time_ms": 47000000,
+    "state_update_time_ms": 27000000,
+    "timestamp": "2025-07-07T21:51:06.40139682+07:00"
+  }
+]

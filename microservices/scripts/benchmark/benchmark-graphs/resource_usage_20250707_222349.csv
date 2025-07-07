@@ -1,0 +1,9 @@
+TestCase,Architecture,CPU_Percent,Memory_MB,Network_MB
+Small_Load_1K_Transactions,microservices,52.0,942.0,130.0
+Small_Load_1K_Transactions,monolith,73.0,729.0,78.0
+Medium_Load_5K_Transactions,microservices,64.0,877.0,145.0
+Medium_Load_5K_Transactions,monolith,88.0,582.0,76.0
+Large_Load_10K_Transactions,microservices,59.0,1079.0,109.0
+Large_Load_10K_Transactions,monolith,87.0,767.0,61.0
+High_Load_20K_Transactions,microservices,57.0,989.0,122.0
+High_Load_20K_Transactions,monolith,82.0,655.0,55.0

@@ -1,0 +1,5 @@
+TestCase,TransactionCount,Microservices_Avg_Latency_ms,Monolith_Avg_Latency_ms,Microservices_P95_ms,Monolith_P95_ms
+Medium_Load_5K_Transactions,5000,35.78,51.81,58.27,70.64
+Large_Load_10K_Transactions,10000,35.63,51.93,57.79,70.84
+High_Load_20K_Transactions,20000,35.44,52.01,57.84,70.72
+Small_Load_1K_Transactions,1000,35.71,51.86,58.81,69.65
