@@ -26,22 +26,28 @@ Dokumentasi lengkap untuk menjalankan sistem Avalanche Parallel Processing.
 
 3. **Tools**
    - Git
-   - PowerShell (Windows) atau Bash (Linux/Mac)
+   - Git Bash (Windows) atau Terminal (Linux/Mac)
    - [kubectl](https://kubernetes.io/docs/tasks/tools/) (untuk Kubernetes)
+   - WSL2 (Opsional untuk Windows)
+
+> ⚠️ **PENTING**: Untuk Windows, gunakan Git Bash atau WSL terminal untuk menjalankan script. PowerShell tidak didukung sepenuhnya untuk beberapa script bash.
 
 ## 🚀 Persiapan Environment
 
-### Windows
+### Windows (Git Bash)
 
-```powershell
-# Set execution policy untuk PowerShell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+```bash
+# Buat script executable
+chmod +x ./scripts/setup/*.sh
+chmod +x ./scripts/deployment/*.sh
+chmod +x ./scripts/scaling/*.sh
+chmod +x ./scripts/maintenance/*.sh
 
 # Setup environment
-.\scripts\setup\setup-environment.ps1 -Provider docker-desktop
+./scripts/setup/setup-environment.sh --provider docker-desktop
 
 # Setup local registry (untuk Kubernetes)
-.\scripts\setup\setup-registry.ps1 -Force
+./scripts/setup/setup-registry.sh --force
 ```
 
 ### Linux/WSL
@@ -66,13 +72,13 @@ chmod +x ./scripts/maintenance/*.sh
 
 Deployment menggunakan Docker Compose lebih sederhana dan cocok untuk development.
 
-#### Windows
-```powershell
+#### Windows (Git Bash)
+```bash
 # 1. Cleanup resources (jika ada)
-.\scripts\maintenance\cleanup-all.ps1 -Force
+./scripts/maintenance/cleanup-all.sh --force
 
 # 2. Deploy dengan 3 worker
-.\scripts\deployment\deploy-docker.ps1 -Build -Workers 3
+./scripts/deployment/deploy-docker.sh --build --workers 3
 
 # 3. Verifikasi deployment
 docker ps
@@ -94,18 +100,21 @@ docker ps
 
 Deployment menggunakan Kubernetes lebih kompleks tapi lebih powerful untuk production.
 
-#### Windows
-```powershell
+#### Windows (Git Bash)
+```bash
 # 1. Pastikan registry lokal berjalan
-.\scripts\setup\setup-registry.ps1 -Force
+./scripts/setup/setup-registry.sh --force
 
 # 2. Cleanup resources (jika ada)
-.\scripts\maintenance\cleanup-all.ps1 -Force
+./scripts/maintenance/cleanup-all.sh --force
 
-# 3. Deploy ke Kubernetes
-.\scripts\deployment\deploy-k8s.ps1 -Build -Registry localhost:5000
+# 3. Siapkan build context (PENTING!)
+./scripts/setup/prepare-build.sh
 
-# 4. Verifikasi deployment
+# 4. Deploy ke Kubernetes
+./scripts/deployment/deploy-k8s.sh --build --registry localhost:5000
+
+# 5. Verifikasi deployment
 kubectl get pods -n avalanche-parallel
 ```
 
@@ -117,12 +126,41 @@ kubectl get pods -n avalanche-parallel
 # 2. Cleanup resources (jika ada)
 ./scripts/maintenance/cleanup-all.sh --force
 
-# 3. Deploy ke Kubernetes
+# 3. Siapkan build context (PENTING!)
+./scripts/setup/prepare-build.sh
+
+# 4. Deploy ke Kubernetes
 ./scripts/deployment/deploy-k8s.sh --build --registry localhost:5000
 
-# 4. Verifikasi deployment
+# 5. Verifikasi deployment
 kubectl get pods -n avalanche-parallel
 ```
+
+> ⚠️ **PENTING**: Selalu jalankan `prepare-build.sh` sebelum menjalankan `deploy-k8s.sh` untuk memastikan build context disiapkan dengan benar.
+
+### Troubleshooting Deployment
+
+1. **Error "target is not a directory" atau "Missing go.mod"**
+   ```bash
+   # Pastikan menjalankan prepare-build terlebih dahulu
+   ./scripts/setup/prepare-build.sh
+   
+   # Jika masih error, coba cleanup dan ulangi
+   ./scripts/maintenance/cleanup-all.sh --force
+   ./scripts/setup/prepare-build.sh
+   ```
+
+2. **Permission Issues**
+   ```bash
+   # Set executable permission untuk semua script
+   chmod +x ./scripts/**/*.sh
+   ```
+
+3. **Script Tidak Berjalan di PowerShell**
+   ```bash
+   # Gunakan Git Bash atau WSL terminal sebagai gantinya
+   # Jangan gunakan PowerShell untuk menjalankan script .sh
+   ```
 
 ## 📈 Scaling
 

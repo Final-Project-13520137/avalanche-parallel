@@ -1,4 +1,4 @@
-# Multi-stage build for consensus-worker
+# Multi-stage build for validator-worker
 FROM golang:1.21-alpine AS builder
 
 # Install dependencies
@@ -7,10 +7,10 @@ RUN apk add --no-cache git ca-certificates
 WORKDIR /build
 
 # Copy root go.mod and go.sum
-COPY go.mod go.sum ./
+COPY build/go.mod build/go.sum ./
 
 # Copy microservices go.mod and go.sum
-COPY microservices/go.mod microservices/go.sum ./microservices/
+COPY build/microservices/go.mod build/microservices/go.sum ./microservices/
 WORKDIR /build/microservices
 RUN go mod download
 
@@ -18,10 +18,10 @@ RUN go mod download
 RUN mkdir -p workers
 
 # Copy source code
-COPY microservices/workers ./workers
+COPY build/microservices/workers ./workers
 
 # Build the worker
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o consensus-worker ./workers/consensus-worker/cmd
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o validator-worker ./workers/validator-worker/cmd
 
 # Final stage
 FROM alpine:latest
@@ -32,7 +32,7 @@ RUN apk --no-cache add ca-certificates curl
 WORKDIR /app
 
 # Copy the binary from builder stage
-COPY --from=builder /build/microservices/consensus-worker .
+COPY --from=builder /build/microservices/validator-worker .
 
 # Create log directory
 RUN mkdir -p /var/log
@@ -45,4 +45,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # Run the worker
-CMD ["./consensus-worker"]
+CMD ["./validator-worker"]

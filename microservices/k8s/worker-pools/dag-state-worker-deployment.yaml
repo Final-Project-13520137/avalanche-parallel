@@ -2,12 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: dag-state-worker
-  namespace: avalanche
+  namespace: avalanche-parallel
   labels:
     app: dag-state-worker
     type: worker
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: dag-state-worker
@@ -19,11 +19,9 @@ spec:
     spec:
       containers:
       - name: dag-state-worker
-        image: avalanche-dag-state-worker:latest
-        imagePullPolicy: Never
+        image: localhost:5000/avalanche-dag-state-worker:latest
+        imagePullPolicy: Always
         ports:
-        - containerPort: 8082
-          name: http
         - containerPort: 8080
           name: metrics
         env:
@@ -35,16 +33,16 @@ spec:
           value: "redis://redis:6379"
         - name: POSTGRES_URL
           value: "postgres://avalanche:avalanche123@postgres:5432/avalanche?sslmode=disable"
-        - name: PORT
-          value: "8082"
         - name: TASK_QUEUE
           value: "dag_state_tasks"
         - name: RESULT_QUEUE
           value: "dag_state_results"
         - name: MAX_WORKERS
-          value: "8"
+          value: "10"
         - name: LOG_LEVEL
           value: "info"
+        - name: PORT
+          value: "8080"
         resources:
           requests:
             memory: "256Mi"
@@ -55,7 +53,7 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8082
+            port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
@@ -63,7 +61,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /health
-            port: 8082
+            port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
           timeoutSeconds: 3
@@ -86,16 +84,13 @@ apiVersion: v1
 kind: Service
 metadata:
   name: dag-state-worker-service
-  namespace: avalanche
+  namespace: avalanche-parallel
   labels:
     app: dag-state-worker
 spec:
   selector:
     app: dag-state-worker
   ports:
-  - name: http
-    port: 8082
-    targetPort: 8082
   - name: metrics
     port: 8080
     targetPort: 8080
@@ -105,7 +100,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: dag-state-worker-hpa
-  namespace: avalanche
+  namespace: avalanche-parallel
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

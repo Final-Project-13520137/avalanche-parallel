@@ -2,12 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: validator-worker
-  namespace: avalanche
+  namespace: avalanche-parallel
   labels:
     app: validator-worker
     type: worker
 spec:
-  replicas: 5
+  replicas: 3
   selector:
     matchLabels:
       app: validator-worker
@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: validator-worker
-        image: avalanche-validator-worker:latest
-        imagePullPolicy: Never
+        image: localhost:5000/avalanche-validator-worker:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
           name: metrics
@@ -32,11 +32,11 @@ spec:
         - name: REDIS_URL
           value: "redis://redis:6379"
         - name: TASK_QUEUE
-          value: "validation_tasks"
+          value: "validator_tasks"
         - name: RESULT_QUEUE
-          value: "validation_results"
+          value: "validator_results"
         - name: MAX_WORKERS
-          value: "15"
+          value: "10"
         - name: LOG_LEVEL
           value: "info"
         resources:
@@ -80,7 +80,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: validator-worker-service
-  namespace: avalanche
+  namespace: avalanche-parallel
   labels:
     app: validator-worker
 spec:
@@ -96,14 +96,14 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: validator-worker-hpa
-  namespace: avalanche
+  namespace: avalanche-parallel
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: validator-worker
-  minReplicas: 3
-  maxReplicas: 15
+  minReplicas: 2
+  maxReplicas: 10
   metrics:
   - type: Resource
     resource:
