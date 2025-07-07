@@ -4,14 +4,21 @@ FROM golang:1.21-alpine AS builder
 # Install dependencies
 RUN apk add --no-cache git ca-certificates
 
-WORKDIR /app
+WORKDIR /build
 
-# Copy go mod files
+# Copy root go.mod and go.sum
 COPY go.mod go.sum ./
+
+# Copy microservices go.mod and go.sum
+COPY microservices/go.mod microservices/go.sum ./microservices/
+WORKDIR /build/microservices
 RUN go mod download
 
+# Create directories
+RUN mkdir -p workers
+
 # Copy source code
-COPY . .
+COPY microservices/workers ./workers
 
 # Build the worker
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o validator-worker ./workers/validator-worker/cmd
@@ -22,10 +29,10 @@ FROM alpine:latest
 # Install ca-certificates and curl for health checks
 RUN apk --no-cache add ca-certificates curl
 
-WORKDIR /root/
+WORKDIR /app
 
 # Copy the binary from builder stage
-COPY --from=builder /app/validator-worker .
+COPY --from=builder /build/microservices/validator-worker .
 
 # Create log directory
 RUN mkdir -p /var/log

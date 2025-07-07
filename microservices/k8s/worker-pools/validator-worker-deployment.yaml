@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: validator-worker
-  namespace: avalanche
+  namespace: avalanche-parallel
   labels:
     app: validator-worker
     type: worker
@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: validator-worker
-        image: avalanche-validator-worker:latest
-        imagePullPolicy: Never
+        image: localhost:5000/avalanche-validator-worker:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
           name: metrics
@@ -36,16 +36,26 @@ spec:
         - name: RESULT_QUEUE
           value: "validation_results"
         - name: MAX_WORKERS
-          value: "15"
+          value: "10"
         - name: LOG_LEVEL
           value: "info"
+        - name: METRICS_ENABLED
+          value: "true"
+        - name: METRICS_INTERVAL
+          value: "15s"
+        - name: WORKER_POOL_SIZE
+          value: "5"
+        - name: BATCH_SIZE
+          value: "100"
+        - name: VALIDATION_TIMEOUT
+          value: "5s"
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
             memory: "512Mi"
             cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
         livenessProbe:
           httpGet:
             path: /health
@@ -74,13 +84,25 @@ spec:
           name: avalanche-config
       - name: logs
         emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - validator-worker
+              topologyKey: "kubernetes.io/hostname"
       restartPolicy: Always
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: validator-worker-service
-  namespace: avalanche
+  namespace: avalanche-parallel
   labels:
     app: validator-worker
 spec:
@@ -96,7 +118,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: validator-worker-hpa
-  namespace: avalanche
+  namespace: avalanche-parallel
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

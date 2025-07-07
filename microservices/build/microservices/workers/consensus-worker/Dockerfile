@@ -7,10 +7,10 @@ RUN apk add --no-cache git ca-certificates
 WORKDIR /build
 
 # Copy root go.mod and go.sum
-COPY go.mod go.sum ./
+COPY build/go.mod build/go.sum ./
 
 # Copy microservices go.mod and go.sum
-COPY microservices/go.mod microservices/go.sum ./microservices/
+COPY build/microservices/go.mod build/microservices/go.sum ./microservices/
 WORKDIR /build/microservices
 RUN go mod download
 
@@ -18,7 +18,7 @@ RUN go mod download
 RUN mkdir -p workers
 
 # Copy source code
-COPY microservices/workers ./workers
+COPY build/microservices/workers ./workers
 
 # Build the worker
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o consensus-worker ./workers/consensus-worker/cmd

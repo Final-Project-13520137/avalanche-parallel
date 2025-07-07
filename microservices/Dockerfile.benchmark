@@ -1,5 +1,12 @@
 FROM golang:1.21-alpine AS builder
 
+# Install Python and pip
+RUN apk add --no-cache python3 py3-pip
+
+# Install Python dependencies
+COPY scripts/benchmark/requirements.txt /requirements.txt
+RUN pip3 install -r /requirements.txt
+
 WORKDIR /app
 
 # Install dependencies
@@ -13,7 +20,7 @@ RUN go mod download
 COPY . .
 
 # Build benchmark components
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o simple-worker ./benchmark/simple-worker.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o benchmark-worker ./benchmark/worker/worker.go
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o benchmark-generator ./benchmark/benchmark-generator.go
 
 # Worker stage
@@ -21,10 +28,10 @@ FROM alpine:latest AS worker
 
 RUN apk --no-cache add ca-certificates curl
 WORKDIR /root/
-COPY --from=builder /app/simple-worker .
+COPY --from=builder /app/benchmark-worker .
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
-CMD ["./simple-worker"]
+CMD ["./benchmark-worker"]
 
 # Benchmark generator stage
 FROM alpine:latest AS benchmark

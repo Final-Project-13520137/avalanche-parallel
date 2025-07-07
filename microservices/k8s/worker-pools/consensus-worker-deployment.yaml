@@ -2,12 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: consensus-worker
-  namespace: avalanche
+  namespace: avalanche-parallel
   labels:
     app: consensus-worker
     type: worker
 spec:
-  replicas: 3
+  replicas: 5
   selector:
     matchLabels:
       app: consensus-worker
@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: consensus-worker
-        image: avalanche-consensus-worker:latest
-        imagePullPolicy: Never
+        image: localhost:5000/avalanche-consensus-worker:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
           name: metrics
@@ -39,13 +39,21 @@ spec:
           value: "10"
         - name: LOG_LEVEL
           value: "info"
+        - name: METRICS_ENABLED
+          value: "true"
+        - name: METRICS_INTERVAL
+          value: "15s"
+        - name: WORKER_POOL_SIZE
+          value: "5"
+        - name: BATCH_SIZE
+          value: "100"
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
             memory: "512Mi"
             cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
         livenessProbe:
           httpGet:
             path: /health
@@ -74,13 +82,25 @@ spec:
           name: avalanche-config
       - name: logs
         emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - consensus-worker
+              topologyKey: "kubernetes.io/hostname"
       restartPolicy: Always
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: consensus-worker-service
-  namespace: avalanche
+  namespace: avalanche-parallel
   labels:
     app: consensus-worker
 spec:
@@ -96,14 +116,14 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: consensus-worker-hpa
-  namespace: avalanche
+  namespace: avalanche-parallel
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: consensus-worker
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 3
+  maxReplicas: 15
   metrics:
   - type: Resource
     resource:
