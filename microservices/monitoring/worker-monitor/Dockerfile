@@ -1,37 +1,31 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.22-alpine AS builder
 
-# Install dependencies
+# Install build dependencies
 RUN apk add --no-cache git ca-certificates
 
-WORKDIR /app
+# Set working directory
+WORKDIR /build
 
 # Copy go mod files
-COPY go.mod go.sum ./
+COPY go.mod ./
+
+# Download dependencies
 RUN go mod download
 
 # Copy source code
 COPY . .
 
-# Build the worker monitor
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker-monitor ./monitoring/worker-monitor/cmd
+# Build
+RUN CGO_ENABLED=0 GOOS=linux go build -o worker-monitor cmd/main.go
 
-# Final stage
+# Create final image
 FROM alpine:latest
 
-# Install ca-certificates and curl for health checks
-RUN apk --no-cache add ca-certificates curl
+# Copy binary from builder
+COPY --from=builder /build/worker-monitor /app/worker-monitor
 
-WORKDIR /root/
+# Set working directory
+WORKDIR /app
 
-# Copy the binary from builder stage
-COPY --from=builder /app/worker-monitor .
-
-# Create log directory
-RUN mkdir -p /var/log
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8083/health || exit 1
-
-# Run the worker monitor
+# Run
 CMD ["./worker-monitor"] 

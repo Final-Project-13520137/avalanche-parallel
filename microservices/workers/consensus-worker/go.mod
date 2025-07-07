@@ -1,4 +1,4 @@
-module github.com/Final-Project-13520137/avalanche-parallel/microservices/workers/validator-worker
+module github.com/Final-Project-13520137/avalanche-parallel/microservices/workers/consensus-worker
 
 go 1.21
 
