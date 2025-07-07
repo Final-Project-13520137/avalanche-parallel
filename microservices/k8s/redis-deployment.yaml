@@ -33,25 +33,25 @@ spec:
         - "60 10000"
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
             memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
             cpu: "500m"
         livenessProbe:
-          tcpSocket:
-            port: 6379
+          exec:
+            command:
+            - redis-cli
+            - ping
           initialDelaySeconds: 30
           periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
         readinessProbe:
-          tcpSocket:
-            port: 6379
+          exec:
+            command:
+            - redis-cli
+            - ping
           initialDelaySeconds: 5
           periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
         volumeMounts:
         - name: redis-data
           mountPath: /data
@@ -71,7 +71,6 @@ spec:
   selector:
     app: redis
   ports:
-  - name: redis
-    port: 6379
-    targetPort: 6379
+    - port: 6379
+      targetPort: 6379
   type: ClusterIP 

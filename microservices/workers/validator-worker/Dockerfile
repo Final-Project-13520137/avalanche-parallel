@@ -6,22 +6,17 @@ RUN apk add --no-cache git ca-certificates
 
 WORKDIR /build
 
-# Copy root go.mod and go.sum
-COPY go.mod go.sum ./
+# Copy the entire project
+COPY . .
 
-# Copy microservices go.mod and go.sum
-COPY microservices/go.mod microservices/go.sum ./microservices/
-WORKDIR /build/microservices
-RUN go mod download
+# Set working directory to validator worker
+WORKDIR /build/microservices/workers/validator-worker
 
-# Create directories
-RUN mkdir -p workers
-
-# Copy source code
-COPY microservices/workers ./workers
+# Download dependencies and tidy up modules
+RUN go mod download && go mod tidy
 
 # Build the worker
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o validator-worker ./workers/validator-worker/cmd
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o validator-worker ./cmd
 
 # Final stage
 FROM alpine:latest
@@ -32,7 +27,7 @@ RUN apk --no-cache add ca-certificates curl
 WORKDIR /app
 
 # Copy the binary from builder stage
-COPY --from=builder /build/microservices/validator-worker .
+COPY --from=builder /build/microservices/workers/validator-worker/validator-worker .
 
 # Create log directory
 RUN mkdir -p /var/log

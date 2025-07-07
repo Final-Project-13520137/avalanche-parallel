@@ -78,7 +78,25 @@ services:
       - avalanche-net
     restart: unless-stopped
 
-  # Validator Workers
+  # Validator Workers (Scalable)
+  validator-worker:
+    build:
+      context: ..
+      dockerfile: microservices/workers/validator-worker/Dockerfile
+    image: avalanche-validator-worker
+    deploy:
+      replicas: 1
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgres://avalanche:avalanche123@postgres:5432/avalanche
+    networks:
+      - avalanche-net
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  # Existing validator workers
   validator-worker-1:
     image: alpine:latest
     container_name: validator-worker-1

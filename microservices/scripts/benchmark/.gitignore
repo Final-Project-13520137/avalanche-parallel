@@ -1,0 +1,12 @@
+# Ignore minikube binary
+minikube-linux-amd64
+
+# Ignore other large binaries
+*.exe
+*.bin
+*.so
+*.dll
+
+# Ignore benchmark results
+benchmark-results/*
+!benchmark-results/.gitkeep 

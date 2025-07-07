@@ -7,7 +7,7 @@ metadata:
     app: validator-worker
     type: worker
 spec:
-  replicas: 5
+  replicas: 3
   selector:
     matchLabels:
       app: validator-worker
@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
       - name: validator-worker
-        image: localhost:5000/avalanche-validator-worker:latest
-        imagePullPolicy: Always
+        image: avalanche-validator-worker:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
           name: metrics
@@ -30,7 +30,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         - name: REDIS_URL
-          value: "redis://redis:6379"
+          value: redis://redis:6379
         - name: TASK_QUEUE
           value: "validation_tasks"
         - name: RESULT_QUEUE
@@ -50,28 +50,24 @@ spec:
         - name: VALIDATION_TIMEOUT
           value: "5s"
         resources:
-          requests:
+          limits:
             memory: "512Mi"
             cpu: "500m"
-          limits:
-            memory: "1Gi"
-            cpu: "1000m"
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
         livenessProbe:
           httpGet:
             path: /health
             port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /health
+            path: /ready
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
         volumeMounts:
         - name: config
           mountPath: /etc/avalanche
