@@ -40,6 +40,11 @@ mkdir -p "$RESULTS_DIR" "$GRAPHS_DIR"
 # Set proper permissions
 chmod -R 777 "$RESULTS_DIR" "$GRAPHS_DIR"
 
+# Install Python dependencies
+echo -e "\n${YELLOW}Installing Python dependencies...${NC}"
+python3 -m pip install pandas matplotlib seaborn &
+show_spinner $! "Installing Python packages"
+
 # Build the benchmark binary
 echo -e "\n${YELLOW}Building benchmark binary...${NC}"
 go build -o avalanche-benchmark avalanche-comparison-benchmark.go &
@@ -51,7 +56,7 @@ fi
 
 # Start required services
 echo -e "\n${YELLOW}Starting required services...${NC}"
-docker-compose -f "${PROJECT_ROOT}/docker-compose.benchmark.yml" up -d redis postgres &
+docker-compose -f "${PROJECT_ROOT}/docker-compose.worker-pools.yml" up -d &
 show_spinner $! "Starting Docker services"
 if [ $? -ne 0 ]; then
     echo -e "\n${RED}Failed to start services${NC}"
@@ -63,7 +68,7 @@ echo -e "\n${YELLOW}Waiting for services to be ready...${NC}"
 
 # Wait for Redis
 echo -e "\n${BLUE}Checking Redis connection:${NC}"
-until docker exec benchmark-redis redis-cli ping > /dev/null 2>&1; do
+until docker exec avalanche-redis redis-cli ping > /dev/null 2>&1; do
     for i in $(seq 0 ${#SPINNER}); do
         printf "\r${BLUE}${SPINNER:$i:1}${NC} Waiting for Redis..."
         sleep 0.1
@@ -73,7 +78,7 @@ echo -e "\r✓ Redis is ready!"
 
 # Wait for PostgreSQL
 echo -e "\n${BLUE}Checking PostgreSQL connection:${NC}"
-until docker exec benchmark-postgres pg_isready -U benchmark > /dev/null 2>&1; do
+until docker exec avalanche-postgres pg_isready -U avalanche > /dev/null 2>&1; do
     for i in $(seq 0 ${#SPINNER}); do
         printf "\r${BLUE}${SPINNER:$i:1}${NC} Waiting for PostgreSQL..."
         sleep 0.1
@@ -81,40 +86,64 @@ until docker exec benchmark-postgres pg_isready -U benchmark > /dev/null 2>&1; d
 done
 echo -e "\r✓ PostgreSQL is ready!"
 
-# Run the benchmark
-echo -e "\n${YELLOW}Running benchmark tests...${NC}"
-echo -e "${BLUE}This may take several minutes. Please wait...${NC}\n"
+# Wait for Worker Pools
+echo -e "\n${BLUE}Checking Worker Pools:${NC}"
 
-# Function to show progress bar
-show_progress() {
-    local duration=$1
-    local elapsed=0
-    local width=50
-    
-    while [ $elapsed -le $duration ]; do
-        local percent=$((elapsed * 100 / duration))
-        local filled=$((elapsed * width / duration))
-        local empty=$((width - filled))
-        
-        printf "\rProgress: [${GREEN}"
-        printf "%${filled}s${NC}" | tr ' ' '█'
-        printf "%${empty}s" | tr ' ' '░'
-        printf "${NC}] %d%%" $percent
-        
-        elapsed=$((elapsed + 1))
-        sleep 1
-    done
-    echo -e "\n"
+# Function to check worker health
+check_worker_health() {
+    local service=$1
+    local port=$2
+    curl -s "http://localhost:${port}/health" > /dev/null 2>&1
 }
 
+# Wait for Consensus Workers
+echo -e "\n${BLUE}Checking Consensus Workers:${NC}"
+until check_worker_health "consensus-haproxy" "8080"; do
+    for i in $(seq 0 ${#SPINNER}); do
+        printf "\r${BLUE}${SPINNER:$i:1}${NC} Waiting for Consensus Workers..."
+        sleep 0.1
+    done
+done
+echo -e "\r✓ Consensus Workers are ready!"
+
+# Wait for Validator Workers
+echo -e "\n${BLUE}Checking Validator Workers:${NC}"
+until check_worker_health "validator-haproxy" "8081"; do
+    for i in $(seq 0 ${#SPINNER}); do
+        printf "\r${BLUE}${SPINNER:$i:1}${NC} Waiting for Validator Workers..."
+        sleep 0.1
+    done
+done
+echo -e "\r✓ Validator Workers are ready!"
+
+# Wait for DAG State Workers
+echo -e "\n${BLUE}Checking DAG State Workers:${NC}"
+until check_worker_health "dag-state-haproxy" "8082"; do
+    for i in $(seq 0 ${#SPINNER}); do
+        printf "\r${BLUE}${SPINNER:$i:1}${NC} Waiting for DAG State Workers..."
+        sleep 0.1
+    done
+done
+echo -e "\r✓ DAG State Workers are ready!"
+
+# Run the benchmark
+echo -e "\n${YELLOW}Running parallel benchmark tests...${NC}"
+echo -e "${BLUE}This may take several minutes. Please wait...${NC}\n"
+
+# Set environment variables for the benchmark
+export BENCHMARK_RESULTS_DIR="$RESULTS_DIR"
+export BENCHMARK_GRAPHS_DIR="$GRAPHS_DIR"
+export API_GATEWAY_ENDPOINT="http://localhost:9650"
+export METRICS_ENDPOINT="http://localhost:9090"
+
 # Run benchmark with progress indication
-BENCHMARK_RESULTS_DIR="$RESULTS_DIR" BENCHMARK_GRAPHS_DIR="$GRAPHS_DIR" ./avalanche-benchmark &
+./avalanche-benchmark &
 BENCHMARK_PID=$!
 
 # Show progress while benchmark is running
 while kill -0 $BENCHMARK_PID 2>/dev/null; do
     for i in $(seq 0 ${#SPINNER}); do
-        printf "\r${BLUE}${SPINNER:$i:1}${NC} Running benchmark tests..."
+        printf "\r${BLUE}${SPINNER:$i:1}${NC} Running parallel benchmark tests..."
         sleep 0.1
     done
 done
@@ -123,13 +152,13 @@ if wait $BENCHMARK_PID; then
     echo -e "\r✓ Benchmark tests completed successfully!\n"
 else
     echo -e "\n${RED}Benchmark failed${NC}"
-    docker-compose -f "${PROJECT_ROOT}/docker-compose.benchmark.yml" down
+    docker-compose -f "${PROJECT_ROOT}/docker-compose.worker-pools.yml" down
     exit 1
 fi
 
 # Generate graphs
 echo -e "${YELLOW}Generating benchmark graphs...${NC}"
-python3 generate-benchmark-graphs.py --results-dir benchmark-results --output-dir benchmark-graphs &
+python3 generate_benchmark_graphs.py --results-dir "$RESULTS_DIR" --output-dir "$GRAPHS_DIR" &
 show_spinner $! "Generating performance graphs"
 if [ $? -ne 0 ]; then
     echo -e "\n${RED}Failed to generate graphs${NC}"
@@ -137,10 +166,14 @@ fi
 
 # Clean up
 echo -e "\n${YELLOW}Cleaning up...${NC}"
-docker-compose -f "${PROJECT_ROOT}/docker-compose.benchmark.yml" down &
-show_spinner $! "Cleaning up Docker services"
+docker-compose -f "${PROJECT_ROOT}/docker-compose.worker-pools.yml" down &
+show_spinner $! "Cleaning up services and worker pools"
 
-echo -e "\n${GREEN}✅ Benchmark Suite Completed Successfully!${NC}"
+echo -e "\n${GREEN}✅ Parallel Benchmark Suite Completed Successfully!${NC}"
 echo -e "${GREEN}📊 Results available in:${NC}"
-echo -e "  - ${BLUE}benchmark-results/${NC}"
-echo -e "  - ${BLUE}benchmark-graphs/${NC}\n" 
+echo -e "  - ${BLUE}${RESULTS_DIR}${NC}"
+echo -e "  - ${BLUE}${GRAPHS_DIR}${NC}\n"
+
+# Display generated graphs
+echo -e "${YELLOW}Generated Graphs:${NC}"
+find "$GRAPHS_DIR" -name "*.png" -type f -printf "  - %f\n" 

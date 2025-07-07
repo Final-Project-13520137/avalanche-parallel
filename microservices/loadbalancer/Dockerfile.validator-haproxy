@@ -1,0 +1,4 @@
+FROM haproxy:2.4
+
+COPY validator-haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg
+RUN echo "" >> /usr/local/etc/haproxy/haproxy.cfg 
