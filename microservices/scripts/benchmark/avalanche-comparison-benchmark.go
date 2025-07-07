@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
-	"time"
+	"path/filepath"
 
 	"github.com/Final-Project-13520137/avalanche-parallel/microservices/scripts/benchmark/types"
 	"github.com/go-redis/redis/v8"
@@ -12,6 +12,28 @@ import (
 
 func main() {
 	log.Println("🚀 Starting Avalanche Microservices vs Monolith Benchmark")
+
+	// Get results directory from environment or use default
+	resultsDir := os.Getenv("BENCHMARK_RESULTS_DIR")
+	if resultsDir == "" {
+		resultsDir = "benchmark-results"
+	}
+
+	graphsDir := os.Getenv("BENCHMARK_GRAPHS_DIR")
+	if graphsDir == "" {
+		graphsDir = "benchmark-graphs"
+	}
+
+	// Make paths absolute
+	resultsDir, err := filepath.Abs(resultsDir)
+	if err != nil {
+		log.Fatalf("Failed to get absolute path for results directory: %v", err)
+	}
+
+	graphsDir, err = filepath.Abs(graphsDir)
+	if err != nil {
+		log.Fatalf("Failed to get absolute path for graphs directory: %v", err)
+	}
 
 	// Load configuration
 	config := types.BenchmarkConfig{
@@ -49,8 +71,8 @@ func main() {
 				ComplexityFactor: 4,
 			},
 		},
-		ResultsDir:       "benchmark-results",
-		GraphsDir:        "benchmark-graphs",
+		ResultsDir:       resultsDir,
+		GraphsDir:        graphsDir,
 		MonolithEndpoint: "http://localhost:9650",
 		MicroservicesConfig: types.MicroservicesConfig{
 			RedisURL:           "redis://localhost:6379",
@@ -62,9 +84,13 @@ func main() {
 		},
 	}
 
-	// Create directories
-	os.MkdirAll(config.ResultsDir, 0755)
-	os.MkdirAll(config.GraphsDir, 0755)
+	// Create directories with proper permissions
+	if err := os.MkdirAll(config.ResultsDir, 0777); err != nil {
+		log.Fatalf("Failed to create results directory: %v", err)
+	}
+	if err := os.MkdirAll(config.GraphsDir, 0777); err != nil {
+		log.Fatalf("Failed to create graphs directory: %v", err)
+	}
 
 	// Initialize Redis client for microservices communication
 	redisClient := redis.NewClient(&redis.Options{
@@ -98,7 +124,7 @@ func main() {
 		}
 
 		// Wait between tests
-		time.Sleep(5 * time.Second)
+		// time.Sleep(5 * time.Second)
 
 		// Run monolith benchmark
 		monolithResult, err := benchmark.RunMonolithBenchmark(testCase)
@@ -119,7 +145,7 @@ func main() {
 		log.Printf("✅ Completed test case: %s", testCase.Name)
 
 		// Wait between test cases
-		time.Sleep(10 * time.Second)
+		// time.Sleep(10 * time.Second)
 	}
 
 	// Generate final report and graphs

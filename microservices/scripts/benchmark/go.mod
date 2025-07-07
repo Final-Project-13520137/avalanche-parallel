@@ -1,12 +1,13 @@
-module benchmark
+module github.com/Final-Project-13520137/avalanche-parallel/microservices/scripts/benchmark
 
-go 1.21
+go 1.16
 
 require (
-	github.com/ava-labs/avalanchego v1.10.18
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/olekukonko/tablewriter v0.0.5
 )
+
+replace github.com/Final-Project-13520137/avalanche-parallel => ../../..
 
 require (
 	github.com/btcsuite/btcd v0.23.4 // indirect
@@ -24,5 +25,3 @@ require (
 	gonum.org/v1/gonum v0.14.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
-
-replace benchmark/types => ./types

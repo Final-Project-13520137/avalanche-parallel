@@ -41,54 +41,21 @@ services:
       retries: 3
     restart: unless-stopped
 
-  # API Gateway
+  # API Gateway with HAProxy Load Balancer
   api-gateway:
-    image: alpine:latest
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
     container_name: avalanche-api-gateway
-    command: sh -c "echo 'API Gateway started' && sleep infinity"
     ports:
       - "9650:9650"
       - "9750:9750"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
-  # Consensus Workers
-  consensus-worker-1:
-    image: alpine:latest
-    container_name: consensus-worker-1
-    command: sh -c "echo 'Consensus Worker 1 started' && sleep infinity"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
-  consensus-worker-2:
-    image: alpine:latest
-    container_name: consensus-worker-2
-    command: sh -c "echo 'Consensus Worker 2 started' && sleep infinity"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
-  consensus-worker-3:
-    image: alpine:latest
-    container_name: consensus-worker-3
-    command: sh -c "echo 'Consensus Worker 3 started' && sleep infinity"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
-  # Validator Workers (Scalable)
-  validator-worker:
-    build:
-      context: ..
-      dockerfile: microservices/workers/validator-worker/Dockerfile
-    image: avalanche-validator-worker
-    deploy:
-      replicas: 1
     environment:
       - REDIS_URL=redis://redis:6379
       - POSTGRES_URL=postgres://avalanche:avalanche123@postgres:5432/avalanche
+      - CONSENSUS_ENDPOINT=http://consensus-haproxy:8080
+      - VALIDATOR_ENDPOINT=http://validator-haproxy:8081
+      - DAG_STATE_ENDPOINT=http://dag-state-haproxy:8082
     networks:
       - avalanche-net
     depends_on:
@@ -96,81 +63,123 @@ services:
       - postgres
     restart: unless-stopped
 
-  # Existing validator workers
-  validator-worker-1:
-    image: alpine:latest
-    container_name: validator-worker-1
-    command: sh -c "echo 'Validator Worker 1 started' && sleep infinity"
+  # Consensus Workers Pool
+  consensus-worker:
+    build:
+      context: ./workers/consensus-worker
+      dockerfile: Dockerfile
+    image: avalanche-consensus-worker
+    deploy:
+      replicas: 4  # Scale between 2-10 workers
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    environment:
+      - WORKER_TYPE=consensus
+      - REDIS_URL=redis://redis:6379
+      - MAX_WORKERS=4
+      - LOG_LEVEL=info
+      - METRICS_PORT=8080
     networks:
       - avalanche-net
+    depends_on:
+      - redis
     restart: unless-stopped
 
-  validator-worker-2:
-    image: alpine:latest
-    container_name: validator-worker-2
-    command: sh -c "echo 'Validator Worker 2 started' && sleep infinity"
+  # Validator Workers Pool
+  validator-worker:
+    build:
+      context: ./workers/validator-worker
+      dockerfile: Dockerfile
+    image: avalanche-validator-worker
+    deploy:
+      replicas: 6  # Scale between 3-15 workers
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    environment:
+      - WORKER_TYPE=validator
+      - REDIS_URL=redis://redis:6379
+      - MAX_WORKERS=4
+      - LOG_LEVEL=info
+      - METRICS_PORT=8081
     networks:
       - avalanche-net
+    depends_on:
+      - redis
     restart: unless-stopped
 
-  validator-worker-3:
-    image: alpine:latest
-    container_name: validator-worker-3
-    command: sh -c "echo 'Validator Worker 3 started' && sleep infinity"
+  # DAG State Workers Pool
+  dag-state-worker:
+    build:
+      context: ./workers/dag-state-worker
+      dockerfile: Dockerfile
+    image: avalanche-dag-state-worker
+    deploy:
+      replicas: 3  # Scale between 2-8 workers
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    environment:
+      - WORKER_TYPE=dag-state
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgres://avalanche:avalanche123@postgres:5432/avalanche
+      - MAX_WORKERS=4
+      - LOG_LEVEL=info
+      - METRICS_PORT=8082
     networks:
       - avalanche-net
+    depends_on:
+      - redis
+      - postgres
     restart: unless-stopped
 
-  validator-worker-4:
-    image: alpine:latest
-    container_name: validator-worker-4
-    command: sh -c "echo 'Validator Worker 4 started' && sleep infinity"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
-  validator-worker-5:
-    image: alpine:latest
-    container_name: validator-worker-5
-    command: sh -c "echo 'Validator Worker 5 started' && sleep infinity"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
-  # DAG State Workers
-  dag-state-worker-1:
-    image: alpine:latest
-    container_name: dag-state-worker-1
-    command: sh -c "echo 'DAG State Worker 1 started' && sleep infinity"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
-  dag-state-worker-2:
-    image: alpine:latest
-    container_name: dag-state-worker-2
-    command: sh -c "echo 'DAG State Worker 2 started' && sleep infinity"
-    networks:
-      - avalanche-net
-    restart: unless-stopped
-
-  # Load Balancer
-  dag-state-worker-lb:
-    image: alpine:latest
-    container_name: dag-state-worker-lb
-    command: sh -c "echo 'DAG State Worker LB started' && sleep infinity"
+  # Load Balancers
+  consensus-haproxy:
+    image: haproxy:2.4
+    container_name: consensus-haproxy
+    volumes:
+      - ./loadbalancer/consensus-haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     ports:
-      - "8082:8082"
+      - "8080:8080"
       - "8404:8404"
     networks:
       - avalanche-net
     restart: unless-stopped
 
-  # Monitoring
+  validator-haproxy:
+    image: haproxy:2.4
+    container_name: validator-haproxy
+    volumes:
+      - ./loadbalancer/validator-haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "8081:8081"
+      - "8405:8404"
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  dag-state-haproxy:
+    image: haproxy:2.4
+    container_name: dag-state-haproxy
+    volumes:
+      - ./loadbalancer/dag-state-haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "8082:8082"
+      - "8406:8404"
+    networks:
+      - avalanche-net
+    restart: unless-stopped
+
+  # Monitoring Stack
   prometheus:
-    image: alpine:latest
+    image: prom/prometheus:v2.45.0
     container_name: avalanche-prometheus
-    command: sh -c "echo 'Prometheus started' && sleep infinity"
+    volumes:
+      - ./monitoring/prometheus-worker.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
     networks:
@@ -178,22 +187,34 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: alpine:latest
+    image: grafana/grafana:10.0.3
     container_name: avalanche-grafana
-    command: sh -c "echo 'Grafana started' && sleep infinity"
+    volumes:
+      - ./monitoring/dashboards:/var/lib/grafana/dashboards
+      - ./monitoring/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
     ports:
       - "3000:3000"
     networks:
       - avalanche-net
     restart: unless-stopped
 
-  # Worker Monitor
+  # Worker Monitor for Auto-scaling
   worker-monitor:
-    image: alpine:latest
+    build:
+      context: ./monitoring/worker-monitor
+      dockerfile: Dockerfile
     container_name: worker-monitor
-    command: sh -c "echo 'Worker Monitor started' && sleep infinity"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PROMETHEUS_URL=http://prometheus:9090
     networks:
       - avalanche-net
+    depends_on:
+      - redis
+      - prometheus
     restart: unless-stopped
 
 volumes:

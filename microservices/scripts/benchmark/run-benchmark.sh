@@ -33,7 +33,12 @@ echo -e "\n${GREEN}🚀 Starting Avalanche Benchmark Suite${NC}\n"
 
 # Create directories
 echo -e "${YELLOW}Setting up environment...${NC}"
-mkdir -p benchmark-results benchmark-graphs
+RESULTS_DIR="${SCRIPT_DIR}/benchmark-results"
+GRAPHS_DIR="${SCRIPT_DIR}/benchmark-graphs"
+mkdir -p "$RESULTS_DIR" "$GRAPHS_DIR"
+
+# Set proper permissions
+chmod -R 777 "$RESULTS_DIR" "$GRAPHS_DIR"
 
 # Build the benchmark binary
 echo -e "\n${YELLOW}Building benchmark binary...${NC}"
@@ -103,7 +108,7 @@ show_progress() {
 }
 
 # Run benchmark with progress indication
-./avalanche-benchmark &
+BENCHMARK_RESULTS_DIR="$RESULTS_DIR" BENCHMARK_GRAPHS_DIR="$GRAPHS_DIR" ./avalanche-benchmark &
 BENCHMARK_PID=$!
 
 # Show progress while benchmark is running

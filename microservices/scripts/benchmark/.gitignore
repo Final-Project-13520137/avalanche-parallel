@@ -8,5 +8,5 @@ minikube-linux-amd64
 *.dll
 
 # Ignore benchmark results
-benchmark-results/*
-!benchmark-results/.gitkeep 
+# benchmark-results/*
+# !benchmark-results/.gitkeep 
