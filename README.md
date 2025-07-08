@@ -1078,36 +1078,18 @@ Arsitektur Redis Queue terdiri dari beberapa komponen utama yang bekerja bersama
 
 ```mermaid
 graph TD
-    %% Task Queues
-    VT[Validation Tasks] --> TD
+    VT[Validation Tasks] --> TD[Task Distributor]
     CT[Consensus Tasks] --> TD
     DST[DAG State Tasks] --> TD
-
-    %% Queue Management
-    TD[Task Distributor] --> PQ
-    PQ[Priority Queue] --> HP & MP & LP
-    HP[High Priority] --> RM
-    MP[Medium Priority] --> RM
-    LP[Low Priority] --> RM
-    RM[Retry Manager] --> BP
-    BP[Batch Processor]
-
-    %% Results
-    BP --> VR & CR & DSR
-    VR[Validation Results]
-    CR[Consensus Results]
-    DSR[DAG State Results]
-
-    %% Styling
-    style VT fill:#f9f
-    style CT fill:#f9f
-    style DST fill:#f9f
-    style VR fill:#bbf
-    style CR fill:#bbf
-    style DSR fill:#bbf
-    style HP fill:#bfb
-    style MP fill:#bfb
-    style LP fill:#bfb
+    TD --> PQ[Priority Queue]
+    PQ --> HP[High Priority]
+    PQ --> MP[Medium Priority]
+    PQ --> LP[Low Priority]
+    HP & MP & LP --> RM[Retry Manager]
+    RM --> BP[Batch Processor]
+    BP --> VR[Validation Results]
+    BP --> CR[Consensus Results]
+    BP --> DSR[DAG State Results]
 ```
 
 ### Redis Queue Data Flow
