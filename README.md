@@ -1062,207 +1062,112 @@ docker-compose exec grafana grafana-cli admin reset-admin-password newpassword
 
 ### Redis Queue Processing Architecture
 
-```
-                     REDIS QUEUE ARCHITECTURE
-                                                                   
-┌────────────────────────────────────────────────────────────────┐
-│                    REDIS CLUSTER                              │
-│                                                               │
-│  ┌─────────────────────────────────────────────────┐          │
-│  │               QUEUE CHANNELS                    │          │
-│  │                                                 │          │
-│  │ ┌───────────┐  ┌───────────┐  ┌───────────┐    │          │
-│  │ │Validation │  │Consensus  │  │DAG State  │    │          │
-│  │ │Tasks      │  │Tasks      │  │Tasks      │    │          │
-│  │ │           │  │           │  │           │    │          │
-│  │ │Priority:  │  │Priority:  │  │Priority:  │    │          │
-│  │ │• High     │  │• High     │  │• High     │    │          │
-│  │ │• Medium   │  │• Medium   │  │• Medium   │    │          │
-│  │ │• Low      │  │• Low      │  │• Low      │    │          │
-│  │ └───────────┘  └───────────┘  └───────────┘    │          │
-│  │                                                 │          │
-│  │ ┌───────────┐  ┌───────────┐  ┌───────────┐    │          │
-│  │ │Validation │  │Consensus  │  │DAG State  │    │          │
-│  │ │Results    │  │Results    │  │Results    │    │          │
-│  │ └───────────┘  └───────────┘  └───────────┘    │          │
-│  └─────────────────────────────────────────────────┘          │
-│                                                               │
-│  ┌─────────────────────────────────────────────────┐          │
-│  │             QUEUE MANAGEMENT                    │          │
-│  │                                                 │          │
-│  │ • Task Distribution: Round-robin               │          │
-│  │ • Priority Queues: 3 levels per channel        │          │
-│  │ • Retry Mechanism: Max 3 attempts              │          │
-│  │ • TTL: 30 seconds per task                     │          │
-│  │ • Batch Processing: Up to 100 tasks            │          │
-│  └─────────────────────────────────────────────────┘          │
-└────────────────────────────────────────────────────────────────┘
-```
+Arsitektur Redis Queue terdiri dari beberapa komponen utama yang bekerja bersama untuk memproses tasks secara efisien:
+
+1. **Queue Channels**:
+   - Validation Tasks & Results
+   - Consensus Tasks & Results
+   - DAG State Tasks & Results
+
+2. **Queue Management**:
+   - Task Distribution: Round-robin
+   - Priority Queues: 3 levels per channel
+   - Retry Mechanism: Max 3 attempts
+   - TTL: 30 seconds per task
+   - Batch Processing: Up to 100 tasks
+
+[Diagram 1: Redis Queue Architecture]
 
 ### Redis Queue Data Flow
 
-```
-                     REDIS QUEUE DATA FLOW
-                                                                   
-┌────────────────────────────────────────────────────────────────┐
-│                    TASK PROCESSING FLOW                       │
-│                                                               │
-│  1. TASK SUBMISSION                                           │
-│  ┌─────────────┐    Task Format:                             │
-│  │API Gateway  │    {                                        │
-│  │             │      "id": "task-123",                      │
-│  │• Validate   │      "type": "validation",                  │
-│  │• Prioritize │      "priority": "high",                    │
-│  │• Route      │      "payload": {...},                      │
-│  └──────┬──────┘      "timestamp": "2024-01-15T10:00:00Z"   │
-│         │            }                                        │
-│         ▼                                                     │
-│  ┌─────────────┐    Priority Assignment:                     │
-│  │Priority     │    • High: Critical transactions            │
-│  │Queues      │    • Medium: Standard transactions          │
-│  │            │    • Low: Batch processing                  │
-│  └──────┬──────┘                                             │
-│         │                                                     │
-│  2. QUEUE PROCESSING                                          │
-│  ┌─────────────────────────────────────────────────┐         │
-│  │              REDIS OPERATIONS                   │         │
-│  │                                                 │         │
-│  │ LPUSH → Add task to queue                      │         │
-│  │ BRPOP → Get task with timeout                  │         │
-│  │ ZADD  → Add to priority set                    │         │
-│  │ ZREM  → Remove from priority set               │         │
-│  │ LLEN  → Get queue length                       │         │
-│  └─────────────────┬───────────────────────────────┘         │
-│                    │                                         │
-│  3. TASK DISTRIBUTION                                        │
-│  ┌─────────────────────────────────────────────────┐         │
-│  │             WORKER ASSIGNMENT                   │         │
-│  │                                                 │         │
-│  │ ┌───────────┐   ┌───────────┐   ┌───────────┐  │         │
-│  │ │Worker 1   │   │Worker 2   │   │Worker N   │  │         │
-│  │ │Processing │   │Processing │   │Processing │  │         │
-│  │ │           │   │           │   │           │  │         │
-│  │ │Task Pool  │   │Task Pool  │   │Task Pool  │  │         │
-│  │ └───────────┘   └───────────┘   └───────────┘  │         │
-│  └─────────────────────────────────────────────────┘         │
-│                    │                                         │
-│  4. RESULT COLLECTION                                        │
-│  ┌─────────────────────────────────────────────────┐         │
-│  │             RESULT PROCESSING                   │         │
-│  │                                                 │         │
-│  │ Result Format:                                  │         │
-│  │ {                                               │         │
-│  │   "task_id": "task-123",                       │         │
-│  │   "status": "success",                         │         │
-│  │   "result": {...},                             │         │
-│  │   "processing_time": 45,                       │         │
-│  │   "worker_id": "worker-1"                      │         │
-│  │ }                                               │         │
-│  └─────────────────────────────────────────────────┘         │
-└────────────────────────────────────────────────────────────────┘
-```
+Alur pemrosesan task dalam Redis Queue meliputi empat tahap utama:
+
+1. **Task Submission**:
+   ```json
+   {
+     "id": "task-123",
+     "type": "validation",
+     "priority": "high",
+     "payload": {...},
+     "timestamp": "2024-01-15T10:00:00Z"
+   }
+   ```
+
+2. **Queue Processing**:
+   - LPUSH: Add task to queue
+   - BRPOP: Get task with timeout
+   - ZADD: Add to priority set
+   - ZREM: Remove from priority set
+   - LLEN: Get queue length
+
+3. **Task Distribution**:
+   - Worker assignment
+   - Load balancing
+   - Priority handling
+
+4. **Result Collection**:
+   ```json
+   {
+     "task_id": "task-123",
+     "status": "success",
+     "result": {...},
+     "processing_time": 45,
+     "worker_id": "worker-1"
+   }
+   ```
+
+[Diagram 2: Redis Queue Data Flow]
 
 ### Redis Queue State Management
 
-```
-                     REDIS QUEUE STATES
-                                                                   
-┌────────────────────────────────────────────────────────────────┐
-│                    QUEUE STATES                               │
-│                                                               │
-│  ┌─────────────────────────────────────────────────┐          │
-│  │               TASK LIFECYCLE                    │          │
-│  │                                                 │          │
-│  │      ┌──────────┐     ┌──────────┐             │          │
-│  │      │ Pending  │────▶│Processing│             │          │
-│  │      └──────────┘     └────┬─────┘             │          │
-│  │           ▲                 │                   │          │
-│  │           │            ┌────▼─────┐             │          │
-│  │      ┌────┴─────┐     │         │             │          │
-│  │      │ Retrying │◀────┤ Failed   │             │          │
-│  │      └──────────┘     │         │             │          │
-│  │                       └────┬─────┘             │          │
-│  │                            │                   │          │
-│  │                       ┌────▼─────┐             │          │
-│  │                       │Completed │             │          │
-│  │                       └──────────┘             │          │
-│  └─────────────────────────────────────────────────┘          │
-│                                                               │
-│  ┌─────────────────────────────────────────────────┐          │
-│  │             QUEUE METRICS                       │          │
-│  │                                                 │          │
-│  │ ┌────────────┐  ┌────────────┐  ┌────────────┐ │          │
-│  │ │Queue Depth │  │Processing  │  │Completion  │ │          │
-│  │ │           │  │Rate        │  │Rate        │ │          │
-│  │ │• Current  │  │• Tasks/sec │  │• Success % │ │          │
-│  │ │• Average  │  │• Latency   │  │• Error %   │ │          │
-│  │ │• Peak     │  │• Timeout % │  │• Retry %   │ │          │
-│  │ └────────────┘  └────────────┘  └────────────┘ │          │
-│  └─────────────────────────────────────────────────┘          │
-│                                                               │
-│  ┌─────────────────────────────────────────────────┐          │
-│  │             ERROR HANDLING                      │          │
-│  │                                                 │          │
-│  │ Retry Strategy:                                 │          │
-│  │ • Attempt 1: Immediate retry                    │          │
-│  │ • Attempt 2: 5s delay                          │          │
-│  │ • Attempt 3: 15s delay                         │          │
-│  │                                                 │          │
-│  │ Error Categories:                               │          │
-│  │ • Validation Errors: No retry                   │          │
-│  │ • Network Errors: Retry                         │          │
-│  │ • Timeout Errors: Retry with backoff            │          │
-│  │ • System Errors: Alert and retry                │          │
-│  └─────────────────────────────────────────────────┘          │
-└────────────────────────────────────────────────────────────────┘
-```
+Task Lifecycle dan State Management:
+
+1. **Task States**:
+   - Pending
+   - Processing
+   - Failed
+   - Retrying
+   - Completed
+
+2. **Queue Metrics**:
+   - Queue Depth: Current/Average/Peak
+   - Processing Rate: Tasks/sec
+   - Completion Rate: Success/Error/Retry
+
+3. **Error Handling**:
+   - Validation Errors: No retry
+   - Network Errors: Retry
+   - Timeout Errors: Retry with backoff
+   - System Errors: Alert and retry
+
+[Diagram 3: Redis Queue States]
 
 ### Redis Queue Performance Characteristics
 
-```
-                     REDIS QUEUE PERFORMANCE
-                                                                   
-┌────────────────────────────────────────────────────────────────┐
-│                    PERFORMANCE METRICS                        │
-│                                                               │
-│  ┌─────────────────────────────────────────────────┐          │
-│  │             THROUGHPUT METRICS                  │          │
-│  │                                                 │          │
-│  │ Queue Processing Rate:                          │          │
-│  │ • Validation Queue:  50,000 tasks/sec           │          │
-│  │ • Consensus Queue:   25,000 tasks/sec           │          │
-│  │ • DAG State Queue:   15,000 tasks/sec           │          │
-│  │                                                 │          │
-│  │ Batch Processing:                               │          │
-│  │ • Optimal batch size: 100 tasks                 │          │
-│  │ • Batch latency: 5-10ms                         │          │
-│  │ • Pipeline efficiency: 95%                      │          │
-│  └─────────────────────────────────────────────────┘          │
-│                                                               │
-│  ┌─────────────────────────────────────────────────┐          │
-│  │             LATENCY BREAKDOWN                   │          │
-│  │                                                 │          │
-│  │ Operation          Min    Avg    Max    p99     │          │
-│  │ ─────────────────────────────────────────────── │          │
-│  │ Queue Push:        0.1ms  0.3ms  1.0ms  0.8ms   │          │
-│  │ Queue Pop:         0.2ms  0.5ms  2.0ms  1.5ms   │          │
-│  │ Priority Update:   0.1ms  0.2ms  0.8ms  0.6ms   │          │
-│  │ Result Write:      0.2ms  0.4ms  1.5ms  1.2ms   │          │
-│  │ Batch Process:     2.0ms  5.0ms  15ms   12ms    │          │
-│  └─────────────────────────────────────────────────┘          │
-│                                                               │
-│  ┌─────────────────────────────────────────────────┐          │
-│  │             RESOURCE UTILIZATION                │          │
-│  │                                                 │          │
-│  │ Memory Usage:                                   │          │
-│  │ • Base: 2GB                                     │          │
-│  │ • Per 10k tasks: +100MB                         │          │
-│  │ • Peak observed: 8GB                            │          │
-│  │                                                 │          │
-│  │ Network I/O:                                    │          │
-│  │ • Inbound: 50MB/s                              │          │
-│  │ • Outbound: 30MB/s                             │          │
-│  │ • Connections: 1000/node                        │          │
-│  └─────────────────────────────────────────────────┘          │
-└────────────────────────────────────────────────────────────────┘
-```
+Performance metrics dan karakteristik sistem:
+
+1. **Throughput**:
+   - Validation Queue: 50,000 tasks/sec
+   - Consensus Queue: 25,000 tasks/sec
+   - DAG State Queue: 15,000 tasks/sec
+
+2. **Latency**:
+   | Operation       | Min  | Avg  | Max  | p99  |
+   |----------------|------|------|------|------|
+   | Queue Push     | 0.1ms| 0.3ms| 1.0ms| 0.8ms|
+   | Queue Pop      | 0.2ms| 0.5ms| 2.0ms| 1.5ms|
+   | Priority Update| 0.1ms| 0.2ms| 0.8ms| 0.6ms|
+   | Result Write   | 0.2ms| 0.4ms| 1.5ms| 1.2ms|
+   | Batch Process  | 2.0ms| 5.0ms| 15ms | 12ms |
+
+3. **Resource Usage**:
+   - Memory:
+     - Base: 2GB
+     - Per 10k tasks: +100MB
+     - Peak observed: 8GB
+   - Network I/O:
+     - Inbound: 50MB/s
+     - Outbound: 30MB/s
+     - Connections: 1000/node
+
+[Diagram 4: Redis Queue Performance]
