@@ -6,6 +6,153 @@ Implementasi **Avalanche blockchain** dengan arsitektur **microservices worker p
 
 Proyek ini mengubah arsitektur monolith Avalanche menjadi **true microservices** dengan worker pools yang dapat memproses transaksi secara **parallel** dan **scale horizontal** berdasarkan load.
 
+### Arsitektur Monolith (Original)
+
+```
+                     AVALANCHE MONOLITHIC ARCHITECTURE
+                                                                   
+┌────────────────────────────────────────────────────────────────┐
+│                    AVALANCHEGO NODE                           │
+│                                                               │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐         │
+│  │ Network     │   │ API         │   │ Chain       │         │
+│  │ Layer       │   │ Server      │   │ Manager     │         │
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘         │
+│         │                 │                 │                 │
+│         └─────────────────┼─────────────────┘                 │
+│                          │                                    │
+│                          ▼                                    │
+│  ┌──────────────────────────────────────────────────┐        │
+│  │              CONSENSUS ENGINE                    │        │
+│  │                                                  │        │
+│  │ ┌────────────┐  ┌────────────┐  ┌────────────┐  │        │
+│  │ │ Snowman    │  │ Avalanche  │  │ DAG        │  │        │
+│  │ │ Protocol   │  │ Protocol   │  │ Manager    │  │        │
+│  │ │            │  │            │  │            │  │        │
+│  │ │• Block     │  │• Vertex    │  │• DAG       │  │        │
+│  │ │  Building  │  │  Creation  │  │  Building  │  │        │
+│  │ │• Chain     │  │• Consensus │  │• State     │  │        │
+│  │ │  Progress  │  │  Voting    │  │  Updates   │  │        │
+│  │ └────────────┘  └────────────┘  └────────────┘  │        │
+│  │                                                  │        │
+│  │ Sequential Processing:                           │        │
+│  │ 1. Receive Transaction                          │        │
+│  │ 2. Build Vertex                                 │        │
+│  │ 3. Run Consensus                                │        │
+│  │ 4. Update State                                 │        │
+│  └──────────────────────────────────────────────────┘        │
+│                          │                                   │
+│                          ▼                                   │
+│  ┌──────────────────────────────────────────────────┐        │
+│  │                STATE MANAGER                     │        │
+│  │                                                  │        │
+│  │ ┌────────────┐  ┌────────────┐  ┌────────────┐  │        │
+│  │ │ VM State   │  │ Block State│  │ Chain State│  │        │
+│  │ │            │  │            │  │            │  │        │
+│  │ │• UTXO Set  │  │• Height    │  │• Genesis   │  │        │
+│  │ │• Balances  │  │• Parent    │  │• Config    │  │        │
+│  │ │• Smart     │  │• Timestamp │  │• Network   │  │        │
+│  │ │  Contracts │  │• Status    │  │  Params    │  │        │
+│  │ └────────────┘  └────────────┘  └────────────┘  │        │
+│  └──────────────────────────────────────────────────┘        │
+└────────────────────────────────────────────────────────────────┘
+
+Processing Characteristics:
+• Single-threaded execution
+• Sequential transaction processing
+• No parallel validation
+• Limited by CPU single-core performance
+• ~4,000 TPS maximum throughput
+```
+
+### Flow Proses Monolith
+
+```
+                     MONOLITHIC PROCESSING FLOW
+                                                                   
+┌────────────────────────────────────────────────────────────────┐
+│                    TRANSACTION FLOW                           │
+│                                                               │
+│  1. TRANSACTION SUBMISSION                                    │
+│  ┌─────────────┐                                             │
+│  │ Client      │                                             │
+│  │ Request     │                                             │
+│  └──────┬──────┘                                             │
+│         │                                                     │
+│         ▼                                                     │
+│  ┌─────────────┐   ┌─────────────┐                          │
+│  │ API Server  │──▶│ Mempool     │                          │
+│  │ Validation  │   │ Queue       │                          │
+│  └─────────────┘   └──────┬──────┘                          │
+│                           │                                   │
+│  2. VERTEX CREATION      ▼                                   │
+│  ┌──────────────────────────────────────────────────┐        │
+│  │              CONSENSUS ENGINE                    │        │
+│  │                                                  │        │
+│  │ ┌────────────┐     Sequential Steps:            │        │
+│  │ │ Vertex     │     1. Get transactions          │        │
+│  │ │ Builder    │     2. Verify signatures         │        │
+│  │ │            │     3. Check dependencies        │        │
+│  │ │• Parents   │     4. Build vertex             │        │
+│  │ │• Txs       │     5. Calculate hash           │        │
+│  │ │• Height    │                                 │        │
+│  │ └────────────┘                                 │        │
+│  └──────────────────┬───────────────────────────────┘        │
+│                     │                                        │
+│  3. CONSENSUS       ▼                                        │
+│  ┌──────────────────────────────────────────────────┐        │
+│  │            SNOWMAN CONSENSUS                     │        │
+│  │                                                  │        │
+│  │ Sequential Voting:                               │        │
+│  │ 1. Query k random validators                     │        │
+│  │ 2. Collect responses                            │        │
+│  │ 3. Update confidence                            │        │
+│  │ 4. Repeat until finalized                       │        │
+│  │                                                  │        │
+│  │ Timing: ~100ms per vertex                       │        │
+│  └──────────────────┬───────────────────────────────┘        │
+│                     │                                        │
+│  4. STATE UPDATE    ▼                                        │
+│  ┌──────────────────────────────────────────────────┐        │
+│  │              STATE MANAGER                       │        │
+│  │                                                  │        │
+│  │ Sequential Updates:                              │        │
+│  │ 1. Apply transactions                           │        │
+│  │ 2. Update UTXO set                             │        │
+│  │ 3. Update balances                             │        │
+│  │ 4. Execute smart contracts                      │        │
+│  │ 5. Commit state changes                        │        │
+│  │                                                  │        │
+│  │ Timing: ~50ms per vertex                        │        │
+│  └──────────────────────────────────────────────────┘        │
+└────────────────────────────────────────────────────────────────┘
+
+Performance Characteristics:
+1. Transaction Processing:
+   • Single thread execution
+   • Sequential validation
+   • ~0.25ms per transaction
+   • No parallel processing
+
+2. Consensus:
+   • Sequential voting
+   • k=5 validators queried
+   • ~100ms finalization time
+   • Limited by network RTT
+
+3. State Updates:
+   • Sequential execution
+   • Single thread VM
+   • ~50ms per vertex
+   • Limited by disk I/O
+
+4. Overall Performance:
+   • Maximum ~4,000 TPS
+   • Average latency: 250ms
+   • CPU bound (single core)
+   • Memory usage: 2-4GB
+```
+
 ## 🏗️ Arsitektur Sistem
 
 ### Perbandingan Arsitektur
