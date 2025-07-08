@@ -15,40 +15,170 @@ Implementasi microservices untuk sistem Avalanche blockchain dengan arsitektur w
 
 ## 🔍 Gambaran Umum
 
-Sistem ini mengubah arsitektur monolith Avalanche menjadi microservices dengan worker pools yang dapat memproses transaksi secara parallel dan auto-scaling berdasarkan load.
-
-### Transformasi Arsitektur
+### Actual System Architecture
 
 ```
-SEBELUM (MONOLITH)                    SESUDAH (MICROSERVICES)
-┌─────────────────────┐               ┌─────────────────────────────────┐
-│     AvalancheGo     │               │         CLIENT LAYER            │
-│  ┌───────────────┐  │               └──────────────┬──────────────────┘
-│  │Single Process │  │                              │
-│  │Sequential     │  │               ┌──────────────▼──────────────────┐
-│  │CPU Bound      │  │               │         API GATEWAY             │
-│  │Memory Limited │  │               │ ┌─────────┐ ┌─────────┐         │
-│  │No Scaling     │  │               │ │LoadBalancer│Router  │         │
-│  └───────────────┘  │               │ └─────────┘ └─────────┘         │
-│                     │               └──────────────┬──────────────────┘
-│ Performance:        │                              │
-│ ❌ 3,974 TPS        │               ┌──────────────▼──────────────────┐
-│ ❌ Single Thread    │               │       MESSAGE QUEUE             │
-│ ❌ No Fault Tolerance│              │         (Redis)                │
-└─────────────────────┘               └──┬─────────┬─────────┬─────────┘
-                                         │         │         │
-                               ┌─────────▼─┐  ┌───▼────┐ ┌──▼──────┐
-                               │VALIDATOR  │  │CONSENSUS│ │DAG+STATE│
-                               │WORKERS    │  │WORKERS  │ │WORKERS  │
-                               │(3-15 pods)│  │(2-10)   │ │(2-8)    │
-                               └───────────┘  └─────────┘ └─────────┘
-                               
-                               Performance:
-                               ✅ 30,000+ TPS (7.5x speedup)
-                               ✅ Multi-core parallel processing
-                               ✅ Horizontal auto-scaling
-                               ✅ Fault tolerance & recovery
-                               ✅ Load distribution
+                     MICROSERVICES IMPLEMENTATION
+                                                                   
+CLIENT                                                            
+  │                                                               
+  ▼                                                               
+┌─────────────┐        ┌─────────────┐       ┌─────────────┐      
+│API Gateway  ├────────►Rate Limiter ├───────►Auth Service │      
+└─────┬───────┘        └─────────────┘       └─────────────┘      
+      │                                                            
+      ▼                                                            
+┌─────────────┐                                                    
+│Redis Queue  │ Channels:                                         
+└─────┬───────┘ • validation_tasks                                
+      │         • consensus_tasks                                  
+      │         • dag_state_tasks                                  
+      ▼         • results_queue                                    
+┌──────────────────────────────────────────────────────┐          
+│               WORKER POOLS                           │          
+│                                                      │          
+│ ┌─────────────┐   ┌─────────────┐   ┌─────────────┐ │          
+│ │ VALIDATOR   │   │ CONSENSUS   │   │ DAG+STATE   │ │          
+│ │ WORKERS     │   │ WORKERS     │   │ WORKERS     │ │          
+│ │             │   │             │   │             │ │          
+│ │Functions:   │   │Functions:   │   │Functions:   │ │          
+│ │• Format     │   │• Snowball   │   │• DAG Update │ │          
+│ │• Signature  │   │• Voting     │   │• State Merge│ │          
+│ │• Balance    │   │• Quorum     │   │• Conflict   │ │          
+│ │• Business   │   │• Finality   │   │  Resolution │ │          
+│ │  Logic      │   │  Decision   │   │• Persistence│ │          
+│ │             │   │             │   │             │ │          
+│ │Timing:      │   │Timing:      │   │Timing:      │ │          
+│ │2-10ms/tx    │   │50-150ms/tx  │   │100-300ms/tx │ │          
+│ │             │   │             │   │             │ │          
+│ │Scale:       │   │Scale:       │   │Scale:       │ │          
+│ │3-15 pods    │   │2-10 pods    │   │2-8 pods     │ │          
+│ └──────┬──────┘   └──────┬──────┘   └──────┬──────┘ │          
+│        │                 │                 │        │          
+│        ▼                 ▼                 ▼        │          
+│ ┌────────────────────────────────────────────┐     │          
+│ │           Result Aggregation              │     │          
+│ └────────────────────────────────────────────┘     │          
+└──────────────────────┬───────────────────────────────┘          
+                       │                                           
+                       ▼                                           
+                 CLIENT RESPONSE                                   
+
+Processing Details:
+1. Validator Workers (3-15 pods):
+   • Format validation: 2ms
+   • Signature verification: 10ms
+   • Balance check: 3ms
+   • Business logic: 5ms
+   Success Rate: 90-95%
+
+2. Consensus Workers (2-10 pods):
+   • Snowball algorithm: 50ms
+   • Vote collection: 25ms
+   • Quorum check: 25ms
+   • Finality decision: 50ms
+   Success Rate: 80-85%
+
+3. DAG+State Workers (2-8 pods):
+   • DAG update: 100ms
+   • State merge: 50ms
+   • Conflict resolution: 100ms
+   • Persistence: 50ms
+   Success Rate: 95-98%
+
+Queue Management:
+• Task Distribution: Round-robin
+• Priority Handling: High/Medium/Low
+• Retry Logic: 3 attempts
+• Timeout: 30s/task
+```
+
+### Worker Pool Internal Architecture
+
+```
+                    WORKER POOL IMPLEMENTATION
+                                                                   
+┌────────────────────────────────────────────────────────────┐    
+│                    VALIDATOR WORKER POOL                    │    
+│                                                            │    
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐      │    
+│  │ Container 1 │   │ Container 2 │   │ Container N │      │    
+│  │             │   │             │   │             │      │    
+│  │ Goroutines: │   │ Goroutines: │   │ Goroutines: │      │    
+│  │ Pool: 50    │   │ Pool: 50    │   │ Pool: 50    │      │    
+│  │             │   │             │   │             │      │    
+│  │ Functions:  │   │ Functions:  │   │ Functions:  │      │    
+│  │• Validate   │   │• Validate   │   │• Validate   │      │    
+│  │• Verify     │   │• Verify     │   │• Verify     │      │    
+│  │• Check      │   │• Check      │   │• Check      │      │    
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘      │    
+│         │                 │                 │            │    
+│         ▼                 ▼                 ▼            │    
+│  ┌────────────────────────────────────────────────┐     │    
+│  │              Redis Task Queue                   │     │    
+│  └────────────────────────────────────────────────┘     │    
+└────────────────────────────────────────────────────────────┘    
+
+┌────────────────────────────────────────────────────────────┐    
+│                    CONSENSUS WORKER POOL                    │    
+│                                                            │    
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐      │    
+│  │ Container 1 │   │ Container 2 │   │ Container N │      │    
+│  │             │   │             │   │             │      │    
+│  │ Goroutines: │   │ Goroutines: │   │ Goroutines: │      │    
+│  │ Pool: 30    │   │ Pool: 30    │   │ Pool: 30    │      │    
+│  │             │   │             │   │             │      │    
+│  │ Functions:  │   │ Functions:  │   │ Functions:  │      │    
+│  │• Poll      │   │• Poll      │   │• Poll      │      │    
+│  │• Vote      │   │• Vote      │   │• Vote      │      │    
+│  │• Finalize  │   │• Finalize  │   │• Finalize  │      │    
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘      │    
+│         │                 │                 │            │    
+│         ▼                 ▼                 ▼            │    
+│  ┌────────────────────────────────────────────────┐     │    
+│  │              Redis Task Queue                   │     │    
+│  └────────────────────────────────────────────────┘     │    
+└────────────────────────────────────────────────────────────┘    
+
+┌────────────────────────────────────────────────────────────┐    
+│                    DAG+STATE WORKER POOL                    │    
+│                                                            │    
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐      │    
+│  │ Container 1 │   │ Container 2 │   │ Container N │      │    
+│  │             │   │             │   │             │      │    
+│  │ Goroutines: │   │ Goroutines: │   │ Goroutines: │      │    
+│  │ Pool: 20    │   │ Pool: 20    │   │ Pool: 20    │      │    
+│  │             │   │             │   │             │      │    
+│  │ Functions:  │   │ Functions:  │   │ Functions:  │      │    
+│  │• Update    │   │• Update    │   │• Update    │      │    
+│  │• Merge     │   │• Merge     │   │• Merge     │      │    
+│  │• Resolve   │   │• Resolve   │   │• Resolve   │      │    
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘      │    
+│         │                 │                 │            │    
+│         ▼                 ▼                 ▼            │    
+│  ┌────────────────────────────────────────────────┐     │    
+│  │              PostgreSQL Database                │     │    
+│  └────────────────────────────────────────────────┘     │    
+└────────────────────────────────────────────────────────────┘    
+
+Worker Configuration:
+1. Validator Workers:
+   • Goroutine Pool: 50 per container
+   • Memory: 1GB per container
+   • CPU: 500m per container
+   • Max Batch Size: 100 tx
+
+2. Consensus Workers:
+   • Goroutine Pool: 30 per container
+   • Memory: 2GB per container
+   • CPU: 1000m per container
+   • Max Batch Size: 50 tx
+
+3. DAG+State Workers:
+   • Goroutine Pool: 20 per container
+   • Memory: 4GB per container
+   • CPU: 200m per container
+   • Max Batch Size: 25 tx
 ```
 
 ## 🏗️ Arsitektur Sistem
@@ -624,11 +754,11 @@ docker stats $(docker ps -q --filter "name=worker")
 version: '3.8'
 
 services:
-  validator-worker:
+validator-worker:
     image: avalanche-validator-worker:latest
     deploy:
       replicas: 5
-    environment:
+  environment:
       # Worker Configuration
       WORKER_TYPE: "validator"
       MAX_CONCURRENT_TASKS: 10
@@ -848,8 +978,8 @@ metrics:
 # AlertManager Configuration
 groups:
 - name: worker_pool_alerts
-  rules:
-  - alert: HighErrorRate
+    rules:
+      - alert: HighErrorRate
     expr: rate(error_rate[5m]) > 0.05
     for: 2m
     labels:
@@ -878,7 +1008,7 @@ groups:
 
   - alert: HighLatency
     expr: histogram_quantile(0.95, transaction_processing_time) > 5.0
-    for: 5m
+        for: 5m
     labels:
       severity: warning
     annotations:
@@ -892,13 +1022,14 @@ groups:
 
 ```bash
 # Comprehensive Benchmark Suite
+# Sistem akan otomatis mendeteksi jumlah worker yang sedang berjalan
 ./scripts/benchmark/run-comprehensive-benchmark.sh \
   --duration 30m \
-  --workers "3,6,9,12,15" \
   --load-patterns "constant,spike,ramp" \
   --output-format "json,csv,html"
 
 # Specific Test Scenarios
+# Worker count akan diambil dari container yang sedang berjalan
 ./scripts/benchmark/scenario-tests.sh \
   --scenario "high-throughput" \
   --transactions 100000 \
@@ -915,6 +1046,40 @@ groups:
   --ramp-up 10m \
   --max-concurrent 100
 ```
+
+### Test Case Configuration
+
+Sistem benchmark menggunakan konfigurasi test case berikut, dengan jumlah worker yang dideteksi secara otomatis dari container yang sedang berjalan:
+
+1. Small Load Test
+   - Transaksi: 1,000
+   - Concurrent Users: 5
+   - Transaction Size: 256 bytes
+   - Type: Transfer
+   - Complexity: Low
+
+2. Medium Load Test
+   - Transaksi: 5,000
+   - Concurrent Users: 15
+   - Transaction Size: 512 bytes
+   - Type: Transfer
+   - Complexity: Medium
+
+3. High Load Test
+   - Transaksi: 10,000
+   - Concurrent Users: 30
+   - Transaction Size: 1,024 bytes
+   - Type: Contract
+   - Complexity: High
+
+4. Maximum Load Test
+   - Transaksi: 20,000
+   - Concurrent Users: 50
+   - Transaction Size: 2,048 bytes
+   - Type: Contract
+   - Complexity: Very High
+
+Catatan: Jumlah worker untuk setiap test case akan diambil secara otomatis dari worker yang sedang berjalan di Docker, tidak lagi menggunakan nilai hardcoded.
 
 ### Benchmark Results Analysis
 

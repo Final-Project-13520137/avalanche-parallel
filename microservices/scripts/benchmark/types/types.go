@@ -1,19 +1,61 @@
 package types
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"net/http"
 	"sync"
 	"time"
-
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/go-redis/redis/v8"
 )
+
+// RedisClient interface to avoid import issues
+type RedisClient interface {
+	LPush(ctx interface{}, key string, values ...interface{}) RedisResult
+	LRange(ctx interface{}, key string, start, stop int64) RedisStringSliceResult
+	LRem(ctx interface{}, key string, count int64, value interface{}) RedisResult
+	Ping(ctx interface{}) RedisResult
+}
+
+// RedisResult interface for Redis command results
+type RedisResult interface {
+	Err() error
+}
+
+// RedisStringSliceResult interface for Redis string slice results
+type RedisStringSliceResult interface {
+	Result() ([]string, error)
+}
+
+// SimpleID represents a simple ID type instead of avalanchego IDs
+type SimpleID struct {
+	bytes [32]byte
+}
+
+// String returns the hex representation of the ID
+func (id SimpleID) String() string {
+	return hex.EncodeToString(id.bytes[:])
+}
+
+// GenerateTestID creates a new random ID for testing
+func GenerateTestID() SimpleID {
+	var id SimpleID
+	rand.Read(id.bytes[:])
+	return id
+}
+
+// APIGatewayClient handles communication with the API Gateway
+type APIGatewayClient struct {
+	BaseURL    string
+	HTTPClient *http.Client
+}
 
 // AvalancheBenchmark handles benchmark execution and result collection
 type AvalancheBenchmark struct {
-	Config       BenchmarkConfig
-	RedisClient  *redis.Client
-	Results      []BenchmarkResult
-	ResultsMutex sync.RWMutex
+	Config           BenchmarkConfig
+	RedisClient      RedisClient
+	APIGatewayClient *APIGatewayClient
+	Results          []BenchmarkResult
+	ResultsMutex     sync.RWMutex
 }
 
 // BenchmarkConfig holds configuration for benchmark tests
@@ -27,14 +69,22 @@ type BenchmarkConfig struct {
 	MicroservicesConfig MicroservicesConfig
 }
 
-// TestCase defines a specific benchmark scenario
+// TestCase defines a benchmark test case
 type TestCase struct {
-	Name             string `json:"name"`
-	TransactionCount int    `json:"transaction_count"`
-	ConcurrentUsers  int    `json:"concurrent_users"`
-	TransactionSize  int    `json:"transaction_size_bytes"`
-	TransactionType  string `json:"transaction_type"`
-	ComplexityFactor int    `json:"complexity_factor"`
+	Name             string
+	TransactionCount int
+	ConcurrentUsers  int
+	TransactionSize  int
+	TransactionType  string
+	ComplexityFactor int
+	WorkerConfig     WorkerConfig
+}
+
+// WorkerConfig defines the worker pool configuration
+type WorkerConfig struct {
+	ValidatorWorkers int
+	ConsensusWorkers int
+	DagStateWorkers  int
 }
 
 // BenchmarkResult stores results from a benchmark run
@@ -68,7 +118,7 @@ type BenchmarkResult struct {
 
 // Transaction represents a test transaction
 type Transaction struct {
-	ID        ids.ID    `json:"id"`
+	ID        SimpleID  `json:"id"`
 	From      string    `json:"from"`
 	To        string    `json:"to"`
 	Amount    uint64    `json:"amount"`
@@ -79,8 +129,9 @@ type Transaction struct {
 	Metrics   *TransactionMetrics
 }
 
-// TransactionMetrics stores timing information for a transaction
+// TransactionMetrics stores timing information for transaction processing
 type TransactionMetrics struct {
+	GatewayStartTime     time.Time
 	ValidationStartTime  time.Time
 	ValidationEndTime    time.Time
 	ConsensusStartTime   time.Time
@@ -129,7 +180,7 @@ type MonolithMetrics struct {
 	Timestamp          time.Time
 }
 
-// MicroservicesConfig contains configuration for microservices architecture
+// MicroservicesConfig defines configuration for microservices architecture
 type MicroservicesConfig struct {
 	RedisURL           string
 	PostgresURL        string
@@ -137,4 +188,26 @@ type MicroservicesConfig struct {
 	ConsensusEndpoint  string
 	DagStateEndpoint   string
 	APIGatewayEndpoint string
+	LoadBalancerConfig LoadBalancerConfig
+	QueueConfig        QueueConfig
+}
+
+// LoadBalancerConfig defines load balancer settings
+type LoadBalancerConfig struct {
+	Algorithm      string
+	HealthCheck    bool
+	CheckInterval  string
+	Timeout        string
+	Retries        int
+	CircuitBreaker bool
+}
+
+// QueueConfig defines message queue settings
+type QueueConfig struct {
+	ValidationQueueSize int
+	ConsensusQueueSize  int
+	DagStateQueueSize   int
+	ResultQueueSize     int
+	QueueTimeout        string
+	RetryAttempts       int
 }

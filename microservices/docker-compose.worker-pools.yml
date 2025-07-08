@@ -246,6 +246,22 @@ services:
           - grafana
     restart: unless-stopped
 
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    container_name: avalanche-alertmanager
+    volumes:
+      - ./monitoring/alertmanager/config.yml:/etc/alertmanager/config.yml
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "9093:9093"
+    networks:
+      avalanche-net:
+        aliases:
+          - alertmanager
+    restart: unless-stopped
+
   # Worker Monitor for Auto-scaling
   worker-monitor:
     build:
@@ -275,6 +291,6 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: 172.25.0.0/16
     attachable: true
-    name: avalanche-net 
+    name: avalanche-net-pool 

@@ -38,639 +38,170 @@ MONOLITH (BEFORE)                    MICROSERVICES WORKER POOLS (AFTER)
                                      ✅ Fault tolerance
 ```
 
-### Diagram Arsitektur Detail
+### Actual System Flow
 
 ```
-                                AVALANCHE PARALLEL PROCESSING SYSTEM
-    ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-    │                                    CLIENT LAYER                                             │
-    └─────────────────────────────┬───────────────────────────────────────────────────────────────┘
-                                  │
-    ┌─────────────────────────────▼───────────────────────────────────────────────────────────────┐
-    │                                  API GATEWAY                                                │
-    │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                           │
-    │  │Load Balancer│ │Rate Limiter │ │   Router    │ │Auth Service │                           │
-    │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘                           │
-    └─────────────────────────────┬───────────────────────────────────────────────────────────────┘
-                                  │
-    ┌─────────────────────────────▼───────────────────────────────────────────────────────────────┐
-    │                               MESSAGE QUEUE (REDIS)                                        │
-    │  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐                               │
-    │  │validation_tasks │ │consensus_tasks  │ │dag_state_tasks  │                               │
-    │  │validation_results│ │consensus_results│ │dag_state_results│                               │
-    │  └─────────────────┘ └─────────────────┘ └─────────────────┘                               │
-    └─────┬─────────────────────┬─────────────────────┬─────────────────────────────────────────┘
-          │                     │                     │
-    ┌─────▼─────┐         ┌─────▼─────┐         ┌─────▼─────┐
-    │           │         │           │         │           │
-    │ VALIDATOR │         │ CONSENSUS │         │DAG+STATE  │
-    │  WORKERS  │         │  WORKERS  │         │ WORKERS   │
-    │           │         │           │         │           │
-    │ ┌───────┐ │         │ ┌───────┐ │         │ ┌───────┐ │
-    │ │Worker1│ │         │ │Worker1│ │         │ │Worker1│ │
-    │ │Worker2│ │         │ │Worker2│ │         │ │Worker2│ │
-    │ │Worker3│ │         │ │Worker3│ │         │ │Worker3│ │
-    │ │ ...   │ │         │ │ ...   │ │         │ │ ...   │ │
-    │ │WorkerN│ │         │ │WorkerN│ │         │ │WorkerN│ │
-    │ └───────┘ │         │ └───────┘ │         │ └───────┘ │
-    │           │         │           │         │           │
-    │ Scale:    │         │ Scale:    │         │ Scale:    │
-    │ 3-15 pods │         │ 2-10 pods │         │ 2-8 pods  │
-    └───────────┘         └───────────┘         └─────┬─────┘
-                                                      │
-                               ┌─────────────────────▼─────────────────────┐
-                               │             POSTGRESQL                    │
-                               │  ┌─────────────┐ ┌─────────────┐          │
-                               │  │   DAG DB    │ │  State DB   │          │
-                               │  └─────────────┘ └─────────────┘          │
-                               └───────────────────────────────────────────┘
+                        TRANSACTION PROCESSING FLOW
+                                                                   
+CLIENT REQUEST                                                     
+     │                                                            
+     ▼                                                            
+┌──────────┐         ┌─────────────┐      ┌──────────────┐       
+│API Gateway├────────►Rate Limiter ├──────►Auth Service  │       
+└────┬─────┘         └─────────────┘      └──────────────┘       
+     │                                                            
+     ▼                                                            
+┌──────────┐                                                      
+│  Redis   │ Queue Channels:                                      
+│  Queue   │ • validation_tasks                                   
+└────┬─────┘ • consensus_tasks                                    
+     │       • dag_state_tasks                                    
+     ▼       • results_queue                                      
+┌──────────────────────────────────────────────────────┐         
+│                 PARALLEL PROCESSING                   │         
+│                                                      │         
+│ ┌─────────────┐   ┌─────────────┐   ┌─────────────┐ │         
+│ │  VALIDATOR  │   │  CONSENSUS  │   │  DAG+STATE  │ │         
+│ │  WORKERS    │   │   WORKERS   │   │   WORKERS   │ │         
+│ │            │   │             │   │             │ │         
+│ │Process:    │   │Process:     │   │Process:     │ │         
+│ │• Format    │   │• Snowball   │   │• DAG Update │ │         
+│ │• Signature │   │• Voting     │   │• State Merge│ │         
+│ │• Balance   │   │• Quorum     │   │• Conflict   │ │         
+│ │• Business  │   │• Finality   │   │  Resolution │ │         
+│ │  Logic     │   │  Decision   │   │• Persistence│ │         
+│ │            │   │             │   │             │ │         
+│ │Timing:     │   │Timing:      │   │Timing:      │ │         
+│ │2-10ms/tx   │   │50-150ms/tx  │   │100-300ms/tx │ │         
+│ │            │   │             │   │             │ │         
+│ │Scale:      │   │Scale:       │   │Scale:       │ │         
+│ │3-15 pods   │   │2-10 pods    │   │2-8 pods     │ │         
+│ └─────┬─────┘   └─────┬─────┘   └─────┬─────┘ │         
+│       │               │               │       │         
+│       ▼               ▼               ▼       │         
+│ ┌─────────────────────────────────────────┐ │         
+│ │           Result Aggregation            │ │         
+│ └─────────────────────────────────────────┘ │         
+└──────────────────────┬───────────────────────┘         
+                       │                                  
+                       ▼                                  
+                 CLIENT RESPONSE                          
 
-    ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-    │                                MONITORING STACK                                            │
-    │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                           │
-    │  │ Prometheus  │ │  Grafana    │ │  Alerting   │ │    Logs     │                           │
-    │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘                           │
-    └─────────────────────────────────────────────────────────────────────────────────────────────┘
+Processing Details:
+1. Validator Workers (3-15 pods):
+   • Format validation: 2ms
+   • Signature verification: 10ms
+   • Balance check: 3ms
+   • Business logic: 5ms
+   Success Rate: 90-95%
+
+2. Consensus Workers (2-10 pods):
+   • Snowball algorithm: 50ms
+   • Vote collection: 25ms
+   • Quorum check: 25ms
+   • Finality decision: 50ms
+   Success Rate: 80-85%
+
+3. DAG+State Workers (2-8 pods):
+   • DAG update: 100ms
+   • State merge: 50ms
+   • Conflict resolution: 100ms
+   • Persistence: 50ms
+   Success Rate: 95-98%
+
+Queue Management:
+• Task Distribution: Round-robin
+• Priority Handling: High/Medium/Low
+• Retry Logic: 3 attempts
+• Timeout: 30s/task
 ```
 
-## 🔄 Mekanisme Pemrosesan Paralel - Docker Implementation
-
-### High-Level Architecture Overview
+### Actual Worker Pool Architecture
 
 ```
-                     AVALANCHE MICROSERVICES - DOCKER DEPLOYMENT
-    
-    ┌─────────────────────────────────────────────────────────────────────────────────────┐
-    │                                   HOST MACHINE                                      │
-    │  ┌─────────────────────────────────────────────────────────────────────────────┐   │
-    │  │                              DOCKER ENGINE                                  │   │
-    │  │                                                                             │   │
-    │  │  ┌─────────────────────────────────────────────────────────────────────┐   │   │
-    │  │  │                       AVALANCHE NETWORK                            │   │   │
-    │  │  │                      (Docker Bridge)                               │   │   │
-    │  │  │                                                                     │   │   │
-    │  │  │  CLIENT TIER                                                        │   │   │
-    │  │  │  ┌─────────────┐                                                    │   │   │
-    │  │  │  │   Port 9650 │ ◄── External API Access                          │   │   │
-    │  │  │  └─────────────┘                                                    │   │   │
-    │  │  │         │                                                           │   │   │
-    │  │  │  ┌──────▼──────────────────────────────────────────────────────┐   │   │   │
-    │  │  │  │                  API GATEWAY LAYER                         │   │   │
-    │  │  │  │                                                             │   │   │
-    │  │  │  │  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐   │   │   │
-    │  │  │  │  │   HAProxy   │────▶│Rate Limiter │────▶│Auth Service │   │   │   │
-    │  │  │  │  │Load Balancer│     │ (Redis)     │     │   (JWT)     │   │   │   │
-    │  │  │  │  └─────────────┘     └─────────────┘     └─────────────┘   │   │   │
-    │  │  │  └──────────────────────┬──────────────────────────────────────┘   │   │   │
-    │  │  │                         │                                          │   │   │
-    │  │  │  ┌──────────────────────▼──────────────────────────────────────┐   │   │   │
-    │  │  │  │                MESSAGE QUEUE LAYER                         │   │   │
-    │  │  │  │                                                             │   │   │
-    │  │  │  │              ┌─────────────────┐                            │   │   │
-    │  │  │  │              │ REDIS CLUSTER   │                            │   │   │
-    │  │  │  │              │ Container       │                            │   │   │
-    │  │  │  │              │ Port: 6379      │                            │   │   │
-    │  │  │  │              └─────────────────┘                            │   │   │
-    │  │  │  │              Queue Channels:                                │   │   │
-    │  │  │  │              • validation_tasks                             │   │   │
-    │  │  │  │              • consensus_tasks                              │   │   │
-    │  │  │  │              • dag_state_tasks                              │   │   │
-    │  │  │  │              • validation_results                           │   │   │
-    │  │  │  │              • consensus_results                            │   │   │
-    │  │  │  │              • dag_state_results                            │   │   │
-    │  │  │  └──┬────────────────┬────────────────┬─────────────────────────┘   │   │   │
-    │  │  │     │                │                │                             │   │   │
-    │  │  │  ┌──▼─────────┐  ┌───▼──────────┐  ┌──▼──────────┐                 │   │   │
-    │  │  │  │VALIDATOR   │  │  CONSENSUS   │  │ DAG+STATE   │                 │   │   │
-    │  │  │  │WORKER POOL │  │ WORKER POOL  │  │WORKER POOL  │                 │   │   │
-    │  │  │  │            │  │              │  │             │                 │   │   │
-    │  │  │  │┌──────────┐│  │┌──────────┐  │  │┌──────────┐ │                 │   │   │
-    │  │  │  ││Container1││  ││Container1│  │  ││Container1│ │                 │   │   │
-    │  │  │  ││Port:8080 ││  ││Port:8080 │  │  ││Port:8080 │ │                 │   │   │
-    │  │  │  │└──────────┘│  │└──────────┘  │  │└──────────┘ │                 │   │   │
-    │  │  │  │┌──────────┐│  │┌──────────┐  │  │┌──────────┐ │                 │   │   │
-    │  │  │  ││Container2││  ││Container2│  │  ││Container2│ │                 │   │   │
-    │  │  │  │└──────────┘│  │└──────────┘  │  │└──────────┘ │                 │   │   │
-    │  │  │  │     ...    │  │     ...     │  │     ...    │                 │   │   │
-    │  │  │  │┌──────────┐│  │┌──────────┐  │  │┌──────────┐ │                 │   │   │
-    │  │  │  ││ContainerN││  ││ContainerN│  │  ││ContainerN│ │                 │   │   │
-    │  │  │  │└──────────┘│  │└──────────┘  │  │└──────────┘ │                 │   │   │
-    │  │  │  │            │  │              │  │             │                 │   │   │
-    │  │  │  │Scale:3-15  │  │Scale: 2-10   │  │Scale: 2-8   │                 │   │   │
-    │  │  │  └────────────┘  └──────────────┘  └─────┬───────┘                 │   │   │
-    │  │  │                                          │                         │   │   │
-    │  │  │  ┌───────────────────────────────────────▼───────────────────┐     │   │   │
-    │  │  │  │                PERSISTENCE LAYER                         │     │   │   │
-    │  │  │  │                                                           │     │   │   │
-    │  │  │  │       ┌─────────────────┐     ┌─────────────────┐         │     │   │   │
-    │  │  │  │       │   POSTGRESQL    │     │   REDIS CACHE   │         │     │   │   │
-    │  │  │  │       │   Container     │     │   Container     │         │     │   │   │
-    │  │  │  │       │   Port: 5432    │     │   Port: 6380    │         │     │   │   │
-    │  │  │  │       │                 │     │                 │         │     │   │   │
-    │  │  │  │       │   Volumes:      │     │   Volumes:      │         │     │   │   │
-    │  │  │  │       │   • dag_data    │     │   • cache_data  │         │     │   │   │
-    │  │  │  │       │   • state_data  │     │   • session_data│         │     │   │   │
-    │  │  │  │       └─────────────────┘     └─────────────────┘         │     │   │   │
-    │  │  │  └───────────────────────────────────────────────────────────┘     │   │   │
-    │  │  │                                                                     │   │   │
-    │  │  │  ┌───────────────────────────────────────────────────────────┐     │   │   │
-    │  │  │  │                MONITORING STACK                          │     │   │   │
-    │  │  │  │                                                           │     │   │   │
-    │  │  │  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐         │     │   │   │
-    │  │  │  │  │ PROMETHEUS  │ │   GRAFANA   │ │ALERTMANAGER │         │     │   │   │
-    │  │  │  │  │ Container   │ │ Container   │ │ Container   │         │     │   │   │
-    │  │  │  │  │ Port: 9090  │ │ Port: 3000  │ │ Port: 9093  │         │     │   │   │
-    │  │  │  │  └─────────────┘ └─────────────┘ └─────────────┘         │     │   │   │
-    │  │  │  └───────────────────────────────────────────────────────────┘     │   │   │
-    │  │  └─────────────────────────────────────────────────────────────────────┘   │   │
-    │  └─────────────────────────────────────────────────────────────────────────────┘   │
-    └─────────────────────────────────────────────────────────────────────────────────────┘
-```
+                    WORKER POOL INTERNAL MECHANISM
+                                                                   
+┌────────────────────────────────────────────────────────────┐    
+│                    VALIDATOR WORKER POOL                    │    
+│                                                            │    
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐      │    
+│  │ Container 1 │   │ Container 2 │   │ Container N │      │    
+│  │             │   │             │   │             │      │    
+│  │ Goroutines: │   │ Goroutines: │   │ Goroutines: │      │    
+│  │ Pool: 50    │   │ Pool: 50    │   │ Pool: 50    │      │    
+│  │             │   │             │   │             │      │    
+│  │ Functions:  │   │ Functions:  │   │ Functions:  │      │    
+│  │• Validate   │   │• Validate   │   │• Validate   │      │    
+│  │• Verify     │   │• Verify     │   │• Verify     │      │    
+│  │• Check      │   │• Check      │   │• Check      │      │    
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘      │    
+│         │                 │                 │            │    
+│         ▼                 ▼                 ▼            │    
+│  ┌────────────────────────────────────────────────┐     │    
+│  │              Redis Task Queue                   │     │    
+│  └────────────────────────────────────────────────┘     │    
+└────────────────────────────────────────────────────────────┘    
 
-### Container Communication Flow
+┌────────────────────────────────────────────────────────────┐    
+│                    CONSENSUS WORKER POOL                    │    
+│                                                            │    
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐      │    
+│  │ Container 1 │   │ Container 2 │   │ Container N │      │    
+│  │             │   │             │   │             │      │    
+│  │ Goroutines: │   │ Goroutines: │   │ Goroutines: │      │    
+│  │ Pool: 30    │   │ Pool: 30    │   │ Pool: 30    │      │    
+│  │             │   │             │   │             │      │    
+│  │ Functions:  │   │ Functions:  │   │ Functions:  │      │    
+│  │• Poll      │   │• Poll      │   │• Poll      │      │    
+│  │• Vote      │   │• Vote      │   │• Vote      │      │    
+│  │• Finalize  │   │• Finalize  │   │• Finalize  │      │    
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘      │    
+│         │                 │                 │            │    
+│         ▼                 ▼                 ▼            │    
+│  ┌────────────────────────────────────────────────┐     │    
+│  │              Redis Task Queue                   │     │    
+│  └────────────────────────────────────────────────┘     │    
+└────────────────────────────────────────────────────────────┘    
 
-```
-                           DOCKER CONTAINER COMMUNICATION
-    
-    Host Machine Network Stack
-    ┌─────────────────────────────────────────────────────────────────────────────────┐
-    │                                                                                 │
-    │  External Access                                                                │
-    │  ┌─────────────┐                                                               │
-    │  │ localhost   │                                                               │
-    │  │ :9650       │ ──── API Gateway                                             │
-    │  │ :3000       │ ──── Grafana Dashboard                                       │
-    │  │ :9090       │ ──── Prometheus Metrics                                      │
-    │  └─────────────┘                                                               │
-    │         │                                                                      │
-    │         ▼                                                                      │
-    │  ┌─────────────────────────────────────────────────────────────────────────┐  │
-    │  │                     DOCKER BRIDGE NETWORK                              │  │
-    │  │                     (avalanche-network)                                │  │
-    │  │                     Subnet: 172.20.0.0/16                             │  │
-    │  │                                                                         │  │
-    │  │  Container-to-Container Communication:                                  │  │
-    │  │                                                                         │  │
-    │  │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                │  │
-    │  │  │API Gateway  │───▶│   Redis     │◄───│Load Balancer│                │  │
-    │  │  │172.20.0.10  │    │172.20.0.20  │    │172.20.0.11  │                │  │
-    │  │  │Port: 9650   │    │Port: 6379   │    │Port: 8404   │                │  │
-    │  │  └─────────────┘    └─────────────┘    └─────────────┘                │  │
-    │  │         │                   ▲                                          │  │
-    │  │         ▼                   │                                          │  │
-    │  │  ┌─────────────┐    ┌───────┴─────┐    ┌─────────────┐                │  │
-    │  │  │HAProxy LB   │    │             │    │             │                │  │
-    │  │  │172.20.0.30  │    │             │    │             │                │  │
-    │  │  │Port: 8080   │    │             │    │             │                │  │
-    │  │  │     ├───────┼────┼─────────────┼────┼─────────────┤                │  │
-    │  │  │     │       │    │             │    │             │                │  │
-    │  │  │     ▼       │    ▼             │    ▼             │                │  │
-    │  │  │┌──────────┐ │ ┌──────────┐     │ ┌──────────┐     │                │  │
-    │  │  ││Validator │ │ │Consensus │     │ │DAG+State │     │                │  │
-    │  │  ││Worker-1  │ │ │Worker-1  │     │ │Worker-1  │     │                │  │
-    │  │  ││172.20.0.│ │ │172.20.0. │     │ │172.20.0. │     │                │  │
-    │  │  ││100+      │ │ │200+      │     │ │300+      │     │                │  │
-    │  │  │└──────────┘ │ └──────────┘     │ └──────────┘     │                │  │
-    │  │  │┌──────────┐ │ ┌──────────┐     │ ┌──────────┐     │                │  │
-    │  │  ││Validator │ │ │Consensus │     │ │DAG+State │     │                │  │
-    │  │  ││Worker-2  │ │ │Worker-2  │     │ │Worker-2  │     │                │  │
-    │  │  │└──────────┘ │ └──────────┘     │ └──────────┘     │                │  │
-    │  │  │    ...      │     ...          │     ...          │                │  │
-    │  │  └─────────────┘ └─────────────┘  └─────────────┘                │  │
-    │  │                                          │                              │  │
-    │  │                                          ▼                              │  │
-    │  │                               ┌─────────────┐                           │  │
-    │  │                               │PostgreSQL   │                           │  │
-    │  │                               │172.20.0.40  │                           │  │
-    │  │                               │Port: 5432   │                           │  │
-    │  │                               └─────────────┘                           │  │
-    │  │                                                                         │  │
-    │  │  Monitoring Stack:                                                      │  │
-    │  │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                │  │
-    │  │  │Prometheus   │───▶│  Grafana    │    │AlertManager │                │  │
-    │  │  │172.20.0.50  │    │172.20.0.51  │    │172.20.0.52  │                │  │
-    │  │  │Port: 9090   │    │Port: 3000   │    │Port: 9093   │                │  │
-    │  │  └─────────────┘    └─────────────┘    └─────────────┘                │  │
-    │  └─────────────────────────────────────────────────────────────────────────┘  │
-    └─────────────────────────────────────────────────────────────────────────────────┘
-```
+┌────────────────────────────────────────────────────────────┐    
+│                    DAG+STATE WORKER POOL                    │    
+│                                                            │    
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐      │    
+│  │ Container 1 │   │ Container 2 │   │ Container N │      │    
+│  │             │   │             │   │             │      │    
+│  │ Goroutines: │   │ Goroutines: │   │ Goroutines: │      │    
+│  │ Pool: 20    │   │ Pool: 20    │   │ Pool: 20    │      │    
+│  │             │   │             │   │             │      │    
+│  │ Functions:  │   │ Functions:  │   │ Functions:  │      │    
+│  │• Update    │   │• Update    │   │• Update    │      │    
+│  │• Merge     │   │• Merge     │   │• Merge     │      │    
+│  │• Resolve   │   │• Resolve   │   │• Resolve   │      │    
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘      │    
+│         │                 │                 │            │    
+│         ▼                 ▼                 ▼            │    
+│  ┌────────────────────────────────────────────────┐     │    
+│  │              PostgreSQL Database                │     │    
+│  └────────────────────────────────────────────────┘     │    
+└────────────────────────────────────────────────────────────┘    
 
-### Detailed Processing Flow
+Worker Configuration:
+1. Validator Workers:
+   • Goroutine Pool: 50 per container
+   • Memory: 1GB per container
+   • CPU: 500m per container
+   • Max Batch Size: 100 tx
 
-```
-                     TRANSACTION PROCESSING MECHANISM
-    
-    CLIENT REQUEST
-         │ HTTP/REST
-         ▼
-    ┌─────────────────────────────────────────────────────────────────────────────┐
-    │                        API GATEWAY CONTAINER                               │
-    │                          (Port: 9650)                                      │
-    │                                                                             │
-    │  1. Request Validation    2. Authentication     3. Rate Limiting           │
-    │  ┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐        │
-    │  │• Schema Check   │────▶│• JWT Validation │───▶│• Client Limits  │        │
-    │  │• Input Sanitize │     │• API Key Check  │    │• Global Limits  │        │
-    │  │• Size Limits    │     │• Permission     │    │• Burst Handling │        │
-    │  └─────────────────┘     └─────────────────┘    └─────────────────┘        │
-    │                                   │                                        │
-    │  4. Load Balancing                 ▼                                        │
-    │  ┌─────────────────────────────────────────────────────────────────────┐   │
-    │  │• Round Robin Algorithm                                              │   │
-    │  │• Health Check Integration                                           │   │
-    │  │• Circuit Breaker Pattern                                           │   │
-    │  └─────────────────────────────────────────────────────────────────────┘   │
-    └─────────────────────────────┬───────────────────────────────────────────────┘
-                                  │ Internal HTTP
-                                  ▼
-    ┌─────────────────────────────────────────────────────────────────────────────┐
-    │                         REDIS MESSAGE QUEUE                                │
-    │                           (Port: 6379)                                     │
-    │                                                                             │
-    │  Task Distribution Strategy:                                                │
-    │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
-    │  │validation_tasks │  │consensus_tasks  │  │dag_state_tasks  │            │
-    │  │                 │  │                 │  │                 │            │
-    │  │• Priority Queue │  │• FIFO Queue     │  │• Batch Queue    │            │
-    │  │• Load Based     │  │• Dependency     │  │• State Ordering │            │
-    │  │• Worker Health  │  │  Aware          │  │• Conflict Check │            │
-    │  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
-    │                                                                             │
-    │  Result Collection:                                                         │
-    │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
-    │  │validation_results│ │consensus_results│  │dag_state_results│            │
-    │  │                 │  │                 │  │                 │            │
-    │  │• Success/Fail   │  │• Accept/Reject  │  │• State Hash     │            │
-    │  │• Error Details  │  │• Vote Count     │  │• Conflict Info  │            │
-    │  │• Processing Time│  │• Confidence     │  │• Update Status  │            │
-    │  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
-    └─────┬─────────────────────┬─────────────────────┬─────────────────────────┘
-          │                     │                     │
-          ▼                     ▼                     ▼
-    ┌─────────────┐       ┌─────────────┐       ┌─────────────┐
-    │ VALIDATOR   │       │ CONSENSUS   │       │ DAG+STATE   │
-    │ WORKER POOL │       │ WORKER POOL │       │ WORKER POOL │
-    │             │       │             │       │             │
-    │             │       │             │       │             │
-    │   STAGE 1   │       │   STAGE 2   │       │   STAGE 3   │
-    │ PARALLEL    │       │ PARALLEL    │       │ PARALLEL    │
-    │ VALIDATION  │       │ CONSENSUS   │       │ STATE UPDATE│
-    └─────────────┘       └─────────────┘       └─────────────┘
-```
+2. Consensus Workers:
+   • Goroutine Pool: 30 per container
+   • Memory: 2GB per container
+   • CPU: 1000m per container
+   • Max Batch Size: 50 tx
 
-### Worker Pool Internal Architecture
-
-```
-                        WORKER POOL INTERNAL MECHANISM
-    
-    ┌─────────────────────────────────────────────────────────────────────────────┐
-    │                         VALIDATOR WORKER POOL                              │
-    │                         (3-15 Container Instances)                         │
-    │                                                                             │
-    │  Container 1           Container 2           Container N                    │
-    │  ┌─────────────┐       ┌─────────────┐       ┌─────────────┐               │
-    │  │ Go Runtime  │       │ Go Runtime  │       │ Go Runtime  │               │
-    │  │             │       │             │       │             │               │
-    │  │┌───────────┐│       │┌───────────┐│       │┌───────────┐│               │
-    │  ││Goroutines ││       ││Goroutines ││       ││Goroutines ││               │
-    │  ││Pool (50)  ││       ││Pool (50)  ││       ││Pool (50)  ││               │
-    │  │└───────────┘│       │└───────────┘│       │└───────────┘│               │
-    │  │             │       │             │       │             │               │
-    │  │ Functions:  │       │ Functions:  │       │ Functions:  │               │
-    │  │• Signature  │       │• Signature  │       │• Signature  │               │
-    │  │  Verify     │       │  Verify     │       │  Verify     │               │
-    │  │• Business   │       │• Business   │       │• Business   │               │
-    │  │  Logic      │       │  Logic      │       │  Logic      │               │
-    │  │• Input      │       │• Input      │       │• Input      │               │
-    │  │  Validation │       │  Validation │       │  Validation │               │
-    │  │• Error      │       │• Error      │       │• Error      │               │
-    │  │  Handling   │       │  Handling   │       │  Handling   │               │
-    │  └─────────────┘       └─────────────┘       └─────────────┘               │
-    │         │                      │                      │                    │
-    │         ▼                      ▼                      ▼                    │
-    │  ┌─────────────────────────────────────────────────────────────────────┐   │
-    │  │                    LOAD BALANCER (HAProxy)                        │   │
-    │  │                                                                     │   │
-    │  │  Algorithms:                                                        │   │
-    │  │  • Round Robin (default)                                           │   │
-    │  │  • Least Connections                                               │   │
-    │  │  • Health Check Based                                              │   │
-    │  │  • Response Time Based                                             │   │
-    │  │                                                                     │   │
-    │  │  Health Monitoring:                                                 │   │
-    │  │  • HTTP /health endpoint                                           │   │
-    │  │  • Response time tracking                                          │   │
-    │  │  • Error rate monitoring                                           │   │
-    │  │  • Resource utilization                                            │   │
-    │  └─────────────────────────────────────────────────────────────────────┘   │
-    └─────────────────────────────────────────────────────────────────────────────┘
-    
-    ┌─────────────────────────────────────────────────────────────────────────────┐
-    │                        CONSENSUS WORKER POOL                               │
-    │                        (2-10 Container Instances)                          │
-    │                                                                             │
-    │  Container 1           Container 2           Container N                    │
-    │  ┌─────────────┐       ┌─────────────┐       ┌─────────────┐               │
-    │  │ Go Runtime  │       │ Go Runtime  │       │ Go Runtime  │               │
-    │  │             │       │             │       │             │               │
-    │  │┌───────────┐│       │┌───────────┐│       │┌───────────┐│               │
-    │  ││Goroutines ││       ││Goroutines ││       ││Goroutines ││               │
-    │  ││Pool (30)  ││       ││Pool (30)  ││       ││Pool (30)  ││               │
-    │  │└───────────┘│       │└───────────┘│       │└───────────┘│               │
-    │  │             │       │             │       │             │               │
-    │  │ Functions:  │       │ Functions:  │       │ Functions:  │               │
-    │  │• Snowball   │       │• Snowball   │       │• Snowball   │               │
-    │  │  Algorithm  │       │  Algorithm  │       │  Algorithm  │               │
-    │  │• Voting     │       │• Voting     │       │• Voting     │               │
-    │  │  Logic      │       │  Logic      │       │  Logic      │               │
-    │  │• Quorum     │       │• Quorum     │       │• Quorum     │               │
-    │  │  Check      │       │  Check      │       │  Check      │               │
-    │  │• Finality   │       │• Finality   │       │• Finality   │               │
-    │  │  Decision   │       │  Decision   │       │  Decision   │               │
-    │  └─────────────┘       └─────────────┘       └─────────────┘               │
-    └─────────────────────────────────────────────────────────────────────────────┘
-    
-    ┌─────────────────────────────────────────────────────────────────────────────┐
-    │                        DAG+STATE WORKER POOL                               │
-    │                        (2-8 Container Instances)                           │
-    │                                                                             │
-    │  Container 1           Container 2           Container N                    │
-    │  ┌─────────────┐       ┌─────────────┐       ┌─────────────┐               │
-    │  │ Go Runtime  │       │ Go Runtime  │       │ Go Runtime  │               │
-    │  │             │       │             │       │             │               │
-    │  │┌───────────┐│       │┌───────────┐│       │┌───────────┐│               │
-    │  ││Goroutines ││       ││Goroutines ││       ││Goroutines ││               │
-    │  ││Pool (20)  ││       ││Pool (20)  ││       ││Pool (20)  ││               │
-    │  │└───────────┘│       │└───────────┘│       │└───────────┘│               │
-    │  │             │       │             │       │             │               │
-    │  │ Functions:  │       │ Functions:  │       │ Functions:  │               │
-    │  │• DAG Tree   │       │• DAG Tree   │       │• DAG Tree   │               │
-    │  │  Update     │       │  Update     │       │  Update     │               │
-    │  │• State      │       │• State      │       │• State      │               │
-    │  │  Management │       │  Management │       │  Management │               │
-    │  │• Conflict   │       │• Conflict   │       │• Conflict   │               │
-    │  │  Resolution │       │  Resolution │       │  Resolution │               │
-    │  │• Persistence│       │• Persistence│       │• Persistence│               │
-    │  │  Operations │       │  Operations │       │  Operations │               │
-    │  └─────────────┘       └─────────────┘       └─────────────┘               │
-    │         │                      │                      │                    │
-    │         ▼                      ▼                      ▼                    │
-    │  ┌─────────────────────────────────────────────────────────────────────┐   │
-    │  │                     POSTGRESQL DATABASE                            │   │
-    │  │                                                                     │   │
-    │  │  Tables:                                                            │   │
-    │  │  • dag_vertices (DAG structure)                                     │   │
-    │  │  • dag_edges (vertex relationships)                                 │   │
-    │  │  • state_data (application state)                                   │   │
-    │  │  • transactions (transaction records)                               │   │
-    │  │  • consensus_log (consensus decisions)                              │   │
-    │  │                                                                     │   │
-    │  │  Optimization:                                                      │   │
-    │  │  • Connection pooling                                               │   │
-    │  │  • Batch operations                                                 │   │
-    │  │  • Index optimization                                               │   │
-    │  │  • Read replicas                                                    │   │
-    │  └─────────────────────────────────────────────────────────────────────┘   │
-    └─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Parallel Processing Timeline
-
-```
-                        PARALLEL PROCESSING TIMING DIAGRAM
-    
-    Time →  0ms    25ms   50ms   75ms   100ms  125ms  150ms  175ms  200ms
-            │      │      │      │      │      │      │      │      │
-    Client  │──────│──────│──────│──────│──────│──────│──────│──────│──────▶
-            │ REQ  │      │      │      │      │      │      │ RESP │
-            │      │      │      │      │      │      │      │      │
-    API GW  │      ├─────▶│      │      │      │      │      ◄──────│
-            │      │ Auth │      │      │      │      │      │ Agg  │
-            │      │ & LB │      │      │      │      │      │      │
-    Redis   │      │      ├─────▶│      │      │      │◄─────│      │
-    Queue   │      │      │ Task │      │      │      │Result│      │
-            │      │      │ Dist │      │      │      │ Coll │      │
-            │      │      │      │      │      │      │      │      │
-    ┌───────┴──────┴──────┴──────┴──────┴──────┴──────┴──────┴──────┴──────┐
-    │                    PARALLEL WORKER EXECUTION                        │
-    │                                                                      │
-    │ Validator Workers (3-15 containers):                                 │
-    │ Worker-1 │      │      ├══════▶│      │      │      │      │         │
-    │ Worker-2 │      │      ├══════▶│      │      │      │      │         │
-    │ Worker-3 │      │      ├══════▶│      │      │      │      │         │
-    │ Worker-N │      │      ├══════▶│      │      │      │      │         │
-    │          │      │      │ Valid │      │      │      │      │         │
-    │          │      │      │ation  │      │      │      │      │         │
-    │                                                                      │
-    │ Consensus Workers (2-10 containers):                                 │
-    │ Worker-1 │      │      │      ├══════▶│      │      │      │         │
-    │ Worker-2 │      │      │      ├══════▶│      │      │      │         │
-    │ Worker-3 │      │      │      ├══════▶│      │      │      │         │
-    │ Worker-N │      │      │      │Consensus│    │      │      │         │
-    │                                                                      │
-    │ DAG+State Workers (2-8 containers):                                  │
-    │ Worker-1 │      │      │      │      ├══════▶│      │      │         │
-    │ Worker-2 │      │      │      │      ├══════▶│      │      │         │
-    │ Worker-3 │      │      │      │      ├══════▶│      │      │         │
-    │ Worker-N │      │      │      │      │ State │      │      │         │
-    │          │      │      │      │      │Update │      │      │         │
-    └───────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┘
-            │      │      │      │      │      │      │      │      │
-    PostgreSQL     │      │      │      │      ├─────▶│      │      │
-    Database│      │      │      │      │      │ Write│      │      │
-            │      │      │      │      │      │ Batch│      │      │
-    
-    Total Processing Time: ~175ms (Parallel) vs ~400ms (Sequential)
-    Speedup Factor: 2.3x with 3 workers, up to 7.5x with maximum workers
-    
-    Legend:
-    REQ    = Client Request
-    Auth   = Authentication & Authorization  
-    LB     = Load Balancing
-    Task   = Task Distribution
-    Dist   = Distribution to Workers
-    Valid  = Transaction Validation
-    Consensus = Consensus Processing
-    State  = State Update
-    Result = Result Collection
-    Coll   = Collection from Workers
-    Agg    = Result Aggregation
-    RESP   = Client Response
-```
-
-### Docker Container Orchestration
-
-```
-                        DOCKER COMPOSE ORCHESTRATION
-    
-    docker-compose.worker-pools.yml Configuration:
-    
-    ┌─────────────────────────────────────────────────────────────────────────────┐
-    │                            SERVICES DEFINITION                             │
-    │                                                                             │
-    │  Infrastructure Services:                                                   │
-    │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
-    │  │     Redis       │  │   PostgreSQL    │  │    HAProxy      │            │
-    │  │                 │  │                 │  │                 │            │
-    │  │ Image: redis:7  │  │ Image: postgres │  │ Image: haproxy  │            │
-    │  │ Port: 6379      │  │ Port: 5432      │  │ Port: 8404      │            │
-    │  │ Volume:         │  │ Volume:         │  │ Volume:         │            │
-    │  │ redis-data      │  │ postgres-data   │  │ haproxy-config  │            │
-    │  │                 │  │                 │  │                 │            │
-    │  │ Environment:    │  │ Environment:    │  │ Environment:    │            │
-    │  │ REDIS_PASSWORD  │  │ POSTGRES_DB     │  │ STATS_ENABLED   │            │
-    │  │ MAX_MEMORY_2GB  │  │ POSTGRES_USER   │  │ STATS_PORT      │            │
-    │  │ PERSISTENCE_ON  │  │ POSTGRES_PASS   │  │ BALANCE_ALG     │            │
-    │  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
-    │                                                                             │
-    │  Worker Pool Services:                                                      │
-    │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
-    │  │ Validator Worker│  │ Consensus Worker│  │ DAG+State Worker│            │
-    │  │                 │  │                 │  │                 │            │
-    │  │ Image: custom   │  │ Image: custom   │  │ Image: custom   │            │
-    │  │ Build: ./validator│ │ Build: ./consensus│ │ Build: ./dag-state│        │
-    │  │ Replicas: 3-15  │  │ Replicas: 2-10  │  │ Replicas: 2-8   │            │
-    │  │ Port: 8080      │  │ Port: 8080      │  │ Port: 8080      │            │
-    │  │                 │  │                 │  │                 │            │
-    │  │ Environment:    │  │ Environment:    │  │ Environment:    │            │
-    │  │ WORKER_TYPE     │  │ WORKER_TYPE     │  │ WORKER_TYPE     │            │
-    │  │ REDIS_URL       │  │ REDIS_URL       │  │ REDIS_URL       │            │
-    │  │ MAX_WORKERS=50  │  │ MAX_WORKERS=30  │  │ MAX_WORKERS=20  │            │
-    │  │ BATCH_SIZE=100  │  │ BATCH_SIZE=50   │  │ BATCH_SIZE=25   │            │
-    │  │ TIMEOUT=30s     │  │ TIMEOUT=45s     │  │ TIMEOUT=60s     │            │
-    │  │                 │  │                 │  │ DB_URL          │            │
-    │  │ Resources:      │  │ Resources:      │  │ Resources:      │            │
-    │  │ CPU: 0.5 cores  │  │ CPU: 1.0 cores  │  │ CPU: 0.25 cores │            │
-    │  │ Memory: 1GB     │  │ Memory: 2GB     │  │ Memory: 4GB     │            │
-    │  │                 │  │                 │  │                 │            │
-    │  │ Health Check:   │  │ Health Check:   │  │ Health Check:   │            │
-    │  │ /health         │  │ /health         │  │ /health         │            │
-    │  │ interval: 30s   │  │ interval: 30s   │  │ interval: 30s   │            │
-    │  │ timeout: 10s    │  │ timeout: 10s    │  │ timeout: 10s    │            │
-    │  │ retries: 3      │  │ retries: 3      │  │ retries: 3      │            │
-    │  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
-    │                                                                             │
-    │  Monitoring Services:                                                       │
-    │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
-    │  │   Prometheus    │  │     Grafana     │  │  AlertManager   │            │
-    │  │                 │  │                 │  │                 │            │
-    │  │ Image: prom/    │  │ Image: grafana/ │  │ Image: prom/    │            │
-    │  │ prometheus      │  │ grafana         │  │ alertmanager    │            │
-    │  │ Port: 9090      │  │ Port: 3000      │  │ Port: 9093      │            │
-    │  │ Volume:         │  │ Volume:         │  │ Volume:         │            │
-    │  │ prometheus-data │  │ grafana-data    │  │ alertmanager-   │            │
-    │  │ prometheus-cfg  │  │ grafana-config  │  │ config          │            │
-    │  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
-    │                                                                             │
-    │  Network Configuration:                                                     │
-    │  ┌─────────────────────────────────────────────────────────────────────┐   │
-    │  │ avalanche-network:                                                  │   │
-    │  │   driver: bridge                                                    │   │
-    │  │   subnet: 172.20.0.0/16                                            │   │
-    │  │   gateway: 172.20.0.1                                              │   │
-    │  │                                                                     │   │
-    │  │ Service Discovery:                                                  │   │
-    │  │ • Automatic DNS resolution between containers                       │   │
-    │  │ • Service names as hostnames                                        │   │
-    │  │ • Internal load balancing                                           │   │
-    │  │ • Health check integration                                          │   │
-    │  └─────────────────────────────────────────────────────────────────────┘   │
-    │                                                                             │
-    │  Volume Configuration:                                                      │
-    │  ┌─────────────────────────────────────────────────────────────────────┐   │
-    │  │ Persistent Volumes:                                                 │   │
-    │  │ • redis-data: Redis data persistence                               │   │
-    │  │ • postgres-data: PostgreSQL data persistence                       │   │
-    │  │ • grafana-data: Grafana dashboard persistence                      │   │
-    │  │ • prometheus-data: Metrics data persistence                        │   │
-    │  │                                                                     │   │
-    │  │ Configuration Volumes:                                              │   │
-    │  │ • prometheus-config: Prometheus configuration                      │   │
-    │  │ • grafana-config: Grafana dashboards and datasources              │   │
-    │  │ • haproxy-config: Load balancer configuration                      │   │
-    │  └─────────────────────────────────────────────────────────────────────┘   │
-    └─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Container Scaling Mechanism
-
-```
-                           DOCKER SCALING OPERATIONS
-    
-    Manual Scaling Command:
-    docker-compose -f docker-compose.worker-pools.yml up -d --scale validator-worker=8
-    
-    Scaling Process:
-    ┌─────────────────────────────────────────────────────────────────────────────┐
-    │                            SCALING WORKFLOW                                │
-    │                                                                             │
-    │  1. PREPARATION PHASE                                                       │
-    │  ┌─────────────────────────────────────────────────────────────────────┐   │
-    │  │ • Check current container count                                     │   │
-    │  │ • Validate resource availability                                    │   │
-    │  │ • Check image availability                                          │   │
-    │  │ • Verify network capacity                                           │   │
-    │  └─────────────────────────────────────────────────────────────────────┘   │
-    │                                     │                                       │
-    │                                     ▼                                       │
-    │  2. CONTAINER CREATION                                                      │
-    │  ┌─────────────────────────────────────────────────────────────────────┐   │
-    │  │ • Create new container instances                                    │   │
-    │  │ • Assign unique container names                                     │   │
-    │  │ • Allocate IP addresses                                             │   │
-    │  │ • Mount volumes                                                     │   │
-    │  │ • Set environment variables                                         │   │
-    │  └─────────────────────────────────────────────────────────────────────┘   │
-    │                                     │                                       │
-    │                                     ▼                                       │
-    │  3. HEALTH CHECK PHASE                                                      │
-    │  ┌─────────────────────────────────────────────────────────────────────┐   │
-    │  │ • Wait for container startup                                        │   │
-    │  │ • Perform health checks                                             │   │
-    │  │ • Verify Redis connectivity                                         │   │
-    │  │ • Test worker endpoints                                             │   │
-    │  │ • Validate database connections (for DAG+State)                    │   │
-    │  └─────────────────────────────────────────────────────────────────────┘   │
-    │                                     │                                       │
-    │                                     ▼                                       │
-    │  4. LOAD BALANCER UPDATE                                                    │
-    │  ┌─────────────────────────────────────────────────────────────────────┐   │
-    │  │ • HAProxy auto-discovery                                            │   │
-    │  │ • Update backend server list                                        │   │
-    │  │ • Perform health checks                                             │   │
-    │  │ • Enable traffic routing                                            │   │
-    │  │ • Update monitoring targets                                         │   │
-    │  └─────────────────────────────────────────────────────────────────────┘   │
-    │                                     │                                       │
-    │                                     ▼                                       │
-    │  5. TRAFFIC DISTRIBUTION                                                    │
-    │  ┌─────────────────────────────────────────────────────────────────────┐   │
-    │  │ Current: 3 Workers → Target: 8 Workers                             │   │
-    │  │                                                                     │   │
-    │  │ Traffic Distribution:                                               │   │
-    │  │ Worker 1: 12.5% ←── Previously: 33.3%                             │   │
-    │  │ Worker 2: 12.5% ←── Previously: 33.3%                             │   │
-    │  │ Worker 3: 12.5% ←── Previously: 33.3%                             │   │
-    │  │ Worker 4: 12.5% ←── New                                            │   │
-    │  │ Worker 5: 12.5% ←── New                                            │   │
-    │  │ Worker 6: 12.5% ←── New                                            │   │
-    │  │ Worker 7: 12.5% ←── New                                            │   │
-    │  │ Worker 8: 12.5% ←── New                                            │   │
-    │  │                                                                     │   │
-    │  │ Result: Load distributed evenly across all workers                 │   │
-    │  └─────────────────────────────────────────────────────────────────────┘   │
-    └─────────────────────────────────────────────────────────────────────────────┘
-    
-    Expected Performance Impact:
-    ┌─────────────────┬─────────────┬─────────────┬─────────────┬─────────────┐
-    │Workers          │3            │5            │8            │15           │
-    ├─────────────────┼─────────────┼─────────────┼─────────────┼─────────────┤
-    │Throughput (TPS) │8,000        │12,000       │18,000       │30,000+      │
-    │Latency (ms)     │125          │85           │55           │35           │
-    │CPU Usage (%)    │85           │70           │60           │45           │
-    │Memory (GB)      │3            │5            │8            │15           │
-    │Speedup Factor   │2.0x         │3.0x         │4.5x         │7.5x         │
-    └─────────────────┴─────────────┴─────────────┴─────────────┴─────────────┘
+3. DAG+State Workers:
+   • Goroutine Pool: 20 per container
+   • Memory: 4GB per container
+   • CPU: 200m per container
+   • Max Batch Size: 25 tx
 ```
 
 ## 📊 Performance Results
@@ -1215,3 +746,168 @@ ENABLE_TLS=false
 **Monitoring**: Integrated Prometheus + Grafana  
 **Performance**: 7.5x improvement over monolith architecture  
 **Availability**: 99.9% uptime with proper load balancing
+
+## 📊 Monitoring & Observability
+
+### Accessing Monitoring Services
+
+Setelah deployment selesai, akses monitoring services melalui:
+
+- **Grafana Dashboard**: `http://localhost:3000` (default credentials: admin/admin)
+- **Prometheus Metrics**: `http://localhost:9090`
+
+### Grafana Dashboards
+
+Sistem menyediakan beberapa dashboard untuk monitoring:
+
+1. **Worker Pools Overview**
+   - Transaction processing rate per worker type
+   - 95th percentile processing latency
+   - CPU & memory usage per worker
+   - Queue depths
+   - Error rates
+
+2. **System Resources**
+   - CPU usage trends
+   - Memory consumption
+   - Network I/O
+   - Disk usage
+
+3. **Business Metrics**
+   - Transaction throughput
+   - Success/failure rates
+   - Processing latency
+   - Queue backlog
+
+### Key Metrics
+
+```yaml
+# Worker Pool Metrics
+- transaction_processing_time:
+    type: histogram
+    labels: [worker_type, status]
+    description: "Transaction processing duration"
+
+- queue_depth:
+    type: gauge
+    labels: [queue_name]
+    description: "Number of pending tasks in queue"
+
+- worker_utilization:
+    type: gauge
+    labels: [worker_type, worker_id]
+    description: "Worker resource utilization"
+
+- error_rate:
+    type: counter
+    labels: [worker_type, error_type]
+    description: "Error count by type"
+
+# System Metrics
+- cpu_usage_percent:
+    type: gauge
+    labels: [container_name]
+    description: "CPU usage percentage"
+
+- memory_usage_bytes:
+    type: gauge
+    labels: [container_name]
+    description: "Memory usage in bytes"
+
+- network_io_bytes:
+    type: counter
+    labels: [container_name, direction]
+    description: "Network I/O bytes"
+```
+
+### Alert Rules
+
+```yaml
+# High Error Rate Alert
+- alert: HighErrorRate
+  expr: rate(error_rate[5m]) > 0.05
+  for: 2m
+  labels:
+    severity: warning
+  annotations:
+    summary: "High error rate detected"
+    description: "Error rate is {{ $value }}% for {{ $labels.worker_type }}"
+
+# Queue Depth Critical
+- alert: QueueDepthCritical
+  expr: queue_depth > 1000
+  for: 1m
+  labels:
+    severity: critical
+  annotations:
+    summary: "Queue depth critical"
+    description: "Queue {{ $labels.queue_name }} has {{ $value }} pending tasks"
+
+# Worker Pool Down
+- alert: WorkerPoolDown
+  expr: up{job="worker-pool"} == 0
+  for: 1m
+  labels:
+    severity: critical
+  annotations:
+    summary: "Worker pool is down"
+    description: "Worker pool {{ $labels.instance }} is not responding"
+
+# High Latency
+- alert: HighLatency
+  expr: histogram_quantile(0.95, transaction_processing_time) > 5.0
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "High processing latency"
+    description: "95th percentile latency is {{ $value }}s"
+```
+
+### Monitoring Stack Management
+
+```bash
+# Check monitoring services status
+docker-compose ps prometheus grafana
+
+# View Prometheus targets
+curl -s http://localhost:9090/api/v1/targets | jq .
+
+# View Grafana health
+curl -s http://localhost:3000/api/health
+
+# Restart monitoring stack
+docker-compose restart prometheus grafana
+
+# View monitoring logs
+docker-compose logs -f prometheus grafana
+
+# Update Grafana admin password
+docker-compose exec grafana grafana-cli admin reset-admin-password newpassword
+```
+
+### Monitoring Best Practices
+
+1. **Dashboard Organization**
+   - Use consistent naming conventions
+   - Group related metrics together
+   - Add descriptions to panels
+   - Set appropriate refresh intervals
+
+2. **Alert Configuration**
+   - Set meaningful thresholds
+   - Add clear descriptions
+   - Configure proper notification channels
+   - Avoid alert fatigue
+
+3. **Performance Optimization**
+   - Use appropriate time ranges
+   - Set suitable scrape intervals
+   - Configure retention policies
+   - Use recording rules for complex queries
+
+4. **Security**
+   - Change default passwords
+   - Use HTTPS when possible
+   - Implement authentication
+   - Restrict access to sensitive metrics

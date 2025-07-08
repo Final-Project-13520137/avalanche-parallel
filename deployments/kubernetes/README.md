@@ -4,27 +4,113 @@ Deployment Kubernetes untuk sistem Avalanche Parallel dengan microservices archi
 
 ## 🏗️ Arsitektur
 
-Sistem ini mengimplementasikan arsitektur microservices parallel dengan komponen-komponen berikut:
+### Actual Kubernetes Architecture
 
-### Komponen Utama
+```
+                     KUBERNETES DEPLOYMENT
+                                                                   
+┌────────────────────────────────────────────────────────────────┐
+│                     KUBERNETES CLUSTER                         │
+│                                                               │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐         │
+│  │ Ingress     │   │ Service     │   │ ConfigMap   │         │
+│  │ Controller  │   │ Mesh        │   │ & Secrets   │         │
+│  └──────┬──────┘   └─────────────┘   └─────────────┘         │
+│         │                                                     │
+│         ▼                                                     │
+│  ┌─────────────┐                                             │
+│  │ API Gateway │                                             │
+│  │ Service     │                                             │
+│  └──────┬──────┘                                             │
+│         │                                                     │
+│         ▼                                                     │
+│  ┌─────────────┐                                             │
+│  │Redis Queue  │ Queue Channels:                             │
+│  │StatefulSet  │ • validation_tasks                          │
+│  └──────┬──────┘ • consensus_tasks                           │
+│         │        • dag_state_tasks                           │
+│         │        • results_queue                             │
+│         ▼                                                     │
+│  ┌──────────────────────────────────────────────────┐        │
+│  │              WORKER DEPLOYMENTS                  │        │
+│  │                                                  │        │
+│  │ ┌────────────┐  ┌────────────┐  ┌────────────┐  │        │
+│  │ │ Validator  │  │ Consensus  │  │ DAG+State  │  │        │
+│  │ │ HPA        │  │ HPA        │  │ HPA        │  │        │
+│  │ │            │  │            │  │            │  │        │
+│  │ │Scale:      │  │Scale:      │  │Scale:      │  │        │
+│  │ │3-15 pods   │  │2-10 pods   │  │2-8 pods    │  │        │
+│  │ │            │  │            │  │            │  │        │
+│  │ │Resources:  │  │Resources:  │  │Resources:  │  │        │
+│  │ │• CPU: 500m │  │• CPU: 1000m│  │• CPU: 200m │  │        │
+│  │ │• Mem: 1Gi  │  │• Mem: 2Gi  │  │• Mem: 4Gi  │  │        │
+│  │ └────────────┘  └────────────┘  └────────────┘  │        │
+│  │                                                  │        │
+│  │ Scaling Metrics:                                 │        │
+│  │ • CPU Usage > 70%                               │        │
+│  │ • Memory Usage > 80%                            │        │
+│  │ • Queue Length > 30 msgs/pod                    │        │
+│  └──────────────────────────────────────────────────┘        │
+│                          │                                   │
+│                          ▼                                   │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐        │
+│  │ PostgreSQL  │   │ Prometheus  │   │ Grafana     │        │
+│  │ StatefulSet │   │ Deployment  │   │ Deployment  │        │
+│  └─────────────┘   └─────────────┘   └─────────────┘        │
+└────────────────────────────────────────────────────────────────┘
 
-1. **API Gateway** - Entry point untuk semua request
-2. **Main Node (Coordinator)** - Koordinator utama dengan fungsi:
-   - DAG State Management
-   - Consensus Orchestration
-   - Result Aggregation
-3. **Message Queue (RabbitMQ)** - Sistem antrian dengan fitur:
-   - Load Balancing
-   - Task Pooling
-   - Backpressure Management
-4. **Worker Nodes** (Scalable) - Node pekerja dengan fungsi:
-   - Transaction Validation
-   - Signature Verification
-   - Consensus Voting
-   - Confidence Calculation
-   - State Update
-   - Conflict Detection
-5. **Monitoring Stack** - Prometheus & Grafana untuk observability
+Worker Pod Details:
+1. Validator Workers:
+   • Goroutine Pool: 50 per pod
+   • Memory Request: 512Mi
+   • Memory Limit: 1Gi
+   • CPU Request: 250m
+   • CPU Limit: 500m
+   • Max Batch Size: 100 tx
+   • Health Check: /health
+   • Readiness Probe: 5s
+   • Liveness Probe: 10s
+
+2. Consensus Workers:
+   • Goroutine Pool: 30 per pod
+   • Memory Request: 1Gi
+   • Memory Limit: 2Gi
+   • CPU Request: 500m
+   • CPU Limit: 1000m
+   • Max Batch Size: 50 tx
+   • Health Check: /health
+   • Readiness Probe: 5s
+   • Liveness Probe: 10s
+
+3. DAG+State Workers:
+   • Goroutine Pool: 20 per pod
+   • Memory Request: 2Gi
+   • Memory Limit: 4Gi
+   • CPU Request: 100m
+   • CPU Limit: 200m
+   • Max Batch Size: 25 tx
+   • Health Check: /health
+   • Readiness Probe: 5s
+   • Liveness Probe: 10s
+
+Auto-Scaling Configuration:
+• Scale Up:
+  - CPU > 70% for 3 minutes
+  - Memory > 80% for 3 minutes
+  - Queue Length > 30 messages/pod
+  - Max Scale Up Rate: 2 pods per minute
+
+• Scale Down:
+  - CPU < 50% for 10 minutes
+  - Memory < 60% for 10 minutes
+  - Queue Empty for 5 minutes
+  - Max Scale Down Rate: 1 pod per 5 minutes
+
+• Stabilization:
+  - Scale Up Window: 0s (immediate)
+  - Scale Down Window: 300s (5 minutes)
+  - Pod Disruption Budget: minAvailable: 1
+```
 
 ## 📋 Prerequisites
 
