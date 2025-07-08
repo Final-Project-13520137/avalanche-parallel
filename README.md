@@ -1131,22 +1131,21 @@ Alur pemrosesan task dalam Redis Queue meliputi empat tahap utama:
    ```
 
 ```mermaid
-graph TB
+graph TD
     subgraph RQ["Redis Queue Architecture"]
+        direction TB
+        
         subgraph Tasks["Task Queues"]
+            direction TB
             VT["Validation Tasks"]
             CT["Consensus Tasks"]
             DST["DAG State Tasks"]
         end
         
-        subgraph Results["Result Queues"]
-            VR["Validation Results"]
-            CR["Consensus Results"]
-            DSR["DAG State Results"]
-        end
+        TD["Task Distributor"]
         
         subgraph Management["Queue Management"]
-            TD["Task Distributor"]
+            direction TB
             PQ["Priority Manager"]
             RM["Retry Handler"]
             TM["TTL Monitor"]
@@ -1154,24 +1153,37 @@ graph TB
         end
         
         subgraph Priorities["Priority Levels"]
+            direction TB
             H["High Priority"]
             M["Medium Priority"]
             L["Low Priority"]
+        end
+        
+        subgraph Results["Result Queues"]
+            direction TB
+            VR["Validation Results"]
+            CR["Consensus Results"]
+            DSR["DAG State Results"]
         end
     end
     
     VT --> TD
     CT --> TD
     DST --> TD
+    
     TD --> PQ
+    
     PQ --> H
     PQ --> M
     PQ --> L
+    
     H --> RM
     M --> RM
     L --> RM
+    
     RM --> TM
     TM --> BP
+    
     BP --> VR
     BP --> CR
     BP --> DSR
@@ -1180,11 +1192,13 @@ graph TB
     classDef secondary fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
     classDef tertiary fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px,color:#000
     classDef management fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
+    classDef distributor fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#000
     
     class VT,CT,DST primary
     class VR,CR,DSR secondary
     class H,M,L tertiary
-    class TD,PQ,RM,TM,BP management
+    class PQ,RM,TM,BP management
+    class TD distributor
 ```
 
 ### Redis Queue State Management
