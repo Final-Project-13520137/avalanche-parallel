@@ -103,30 +103,165 @@ Test Case Details:
    • Complexity: Very High
    • Duration: 60 minutes
 
-Worker Pool Configuration:
+Worker Pool Implementation Details:
+```go
+// Actual Worker Pool Implementation
+type ValidatorWorker struct {
+    ID           string
+    RedisClient  *redis.Client
+    TaskQueue    string
+    ResultQueue  string
+    WorkerPool   chan chan ValidationTask  // Channel of task channels
+    Workers      []ValidationTaskWorker    // Pool of worker goroutines
+    Quit         chan bool                // Shutdown signal
+    WaitGroup    sync.WaitGroup          // Synchronization
+    ProcessedTasks int64                 // Metrics
+    ValidTasks     int64
+    InvalidTasks   int64
+    mu           sync.RWMutex            // Thread safety
+}
+
+// Individual Worker Implementation
+type ValidationTaskWorker struct {
+    ID          string
+    WorkerPool  chan chan ValidationTask  // Register for work
+    TaskChannel chan ValidationTask      // Receive tasks
+    Quit        chan bool               // Worker shutdown
+    Parent      *ValidatorWorker        // Access to parent
+}
+```
+
+Goroutine Execution Model:
+1. **Dispatcher Goroutine**
+   ```go
+   // Single dispatcher goroutine per worker pool
+   func (vw *ValidatorWorker) dispatcher(ctx context.Context) {
+       for {
+           // Get task from Redis queue
+           task := getNextTask()
+           
+           // Find available worker
+           select {
+           case taskChannel := <-vw.WorkerPool:
+               // Send task to available worker
+               taskChannel <- task
+           case <-time.After(10 * time.Second):
+               // No worker available, retry
+               returnTaskToQueue(task)
+           }
+       }
+   }
+   ```
+
+2. **Worker Goroutines**
+   ```go
+   // Multiple worker goroutines (50 per container)
+   func (vtw *ValidationTaskWorker) run() {
+       for {
+           // Register for work
+           vtw.WorkerPool <- vtw.TaskChannel
+           
+           select {
+           case task := <-vtw.TaskChannel:
+               // Process task
+               result := vtw.processTask(task)
+               // Send result
+               vtw.sendResult(result)
+           case <-vtw.Quit:
+               return
+           }
+       }
+   }
+   ```
+
+3. **Metrics Reporter Goroutine**
+   ```go
+   // Single metrics goroutine per worker pool
+   func (vw *ValidatorWorker) reportMetrics(ctx context.Context) {
+       ticker := time.NewTicker(30 * time.Second)
+       for {
+           select {
+           case <-ticker.C:
+               // Report metrics to Redis
+               reportWorkerMetrics()
+           case <-vw.Quit:
+               return
+           }
+       }
+   }
+   ```
+
+Worker Pool Configurations:
 1. Validator Workers:
-   • Pool Size: 50 goroutines/container
-   • Processing Time: 2-10ms/tx
+   • Goroutine Pool: 50 per container
+   • Processing Functions:
+     - validateTransaction: 5ms
+     - verifySignature: 10ms
+     - checkBalance: 3ms
+     - validateFormat: 2ms
+   • Task Channel Buffer: 1000
    • Success Rate: 90-95%
-   • Scale: 3-15 pods
+   • Scale: 3-15 containers
 
 2. Consensus Workers:
-   • Pool Size: 30 goroutines/container
-   • Processing Time: 50-150ms/tx
+   • Goroutine Pool: 30 per container
+   • Processing Functions:
+     - processConsensusPoll: 50ms
+     - processFinalizationCheck: 5ms
+   • Task Channel Buffer: 500
    • Success Rate: 80-85%
-   • Scale: 2-10 pods
+   • Scale: 2-10 containers
 
 3. DAG+State Workers:
-   • Pool Size: 20 goroutines/container
-   • Processing Time: 100-300ms/tx
+   • Goroutine Pool: 20 per container
+   • Processing Functions:
+     - updateDAG: 100ms
+     - mergeState: 50ms
+     - resolveConflicts: 100ms
+   • Task Channel Buffer: 250
    • Success Rate: 95-98%
-   • Scale: 2-8 pods
+   • Scale: 2-8 containers
 
-Metrics Collection:
-• Sampling Rate: 1s
-• Aggregation Window: 10s
-• Export Format: JSON/CSV
-• Graph Generation: PNG/SVG
+Concurrency Model:
+```
+                    GOROUTINE EXECUTION MODEL
+                                                                   
+┌────────────────────────────────────────────────────────────────┐
+│                    WORKER CONTAINER                           │
+│                                                               │
+│  ┌─────────────┐                                             │
+│  │ Dispatcher  │                                             │
+│  │ Goroutine   │                                             │
+│  └──────┬──────┘                                             │
+│         │                                                     │
+│         ▼                                                     │
+│  ┌─────────────┐                                             │
+│  │ Worker Pool │ Channel of Channels                         │
+│  │ Channel     │ (Task Distribution)                         │
+│  └──────┬──────┘                                             │
+│         │                                                     │
+│         ▼                                                     │
+│  ┌──────────────────────────────────────────────────┐        │
+│  │              WORKER GOROUTINES                   │        │
+│  │                                                  │        │
+│  │ ┌────────────┐  ┌────────────┐  ┌────────────┐  │        │
+│  │ │ Worker 1   │  │ Worker 2   │  │ Worker N   │  │        │
+│  │ │            │  │            │  │            │  │        │
+│  │ │• TaskChan  │  │• TaskChan  │  │• TaskChan  │  │        │
+│  │ │• Process   │  │• Process   │  │• Process   │  │        │
+│  │ │• Result    │  │• Result    │  │• Result    │  │        │
+│  │ └────────────┘  └────────────┘  └────────────┘  │        │
+│  │      (50 goroutines per container)               │        │
+│  └──────────────────────────────────────────────────┘        │
+│                          │                                   │
+│                          ▼                                   │
+│  ┌──────────────────────────────────────────────────┐        │
+│  │            METRICS GOROUTINE                     │        │
+│  │ • Collect metrics                                │        │
+│  │ • Report every 30s                               │        │
+│  │ • Update Prometheus                              │        │
+│  └──────────────────────────────────────────────────┘        │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ## ✨ Fitur

@@ -119,8 +119,8 @@ Queue Management:
 ### Actual Worker Pool Architecture
 
 ```
-                    WORKER POOL INTERNAL MECHANISM
-                                                                   
+                        WORKER POOL INTERNAL MECHANISM
+    
 ┌────────────────────────────────────────────────────────────┐    
 │                    VALIDATOR WORKER POOL                    │    
 │                                                            │    
