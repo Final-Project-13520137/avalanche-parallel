@@ -1077,36 +1077,58 @@ Arsitektur Redis Queue terdiri dari beberapa komponen utama yang bekerja bersama
    - Batch Processing: Up to 100 tasks
 
 ```mermaid
-flowchart TB
-    subgraph Redis["Redis Cluster"]
-        subgraph Channels["Queue Channels"]
-            VT["Validation Tasks"]
-            CT["Consensus Tasks"]
-            DST["DAG State Tasks"]
-            VR["Validation Results"]
-            CR["Consensus Results"]
-            DSR["DAG State Results"]
+graph TB
+    subgraph RQ[Redis Queue Architecture]
+        subgraph Channels[Queue Channels]
+            direction TB
+            subgraph Tasks[Task Queues]
+                VT[Validation Tasks]
+                CT[Consensus Tasks]
+                DST[DAG State Tasks]
+            end
+            
+            subgraph Results[Result Queues]
+                VR[Validation Results]
+                CR[Consensus Results]
+                DSR[DAG State Results]
+            end
         end
-        
-        subgraph Management["Queue Management"]
-            TD["Task Distribution<br/>Round-robin"]
-            PQ["Priority Queues<br/>3 levels per channel"]
-            RM["Retry Mechanism<br/>Max 3 attempts"]
-            TTL["TTL<br/>30s per task"]
-            BP["Batch Processing<br/>Up to 100 tasks"]
+
+        subgraph Management[Queue Management]
+            direction TB
+            TD[Task Distributor]
+            PQ[Priority Manager]
+            RM[Retry Handler]
+            TM[TTL Monitor]
+            BP[Batch Processor]
+        end
+
+        subgraph Priorities[Priority Levels]
+            H[High Priority]
+            M[Medium Priority]
+            L[Low Priority]
         end
     end
 
+    %% Task Flow
     VT --> TD
     CT --> TD
     DST --> TD
     TD --> PQ
-    PQ --> RM
-    RM --> TTL
-    TTL --> BP
-    BP --> VR
-    BP --> CR
-    BP --> DSR
+    PQ --> H & M & L
+    H & M & L --> RM
+    RM --> TM
+    TM --> BP
+    BP --> VR & CR & DSR
+
+    %% Style
+    classDef primary fill:#f9f,stroke:#333,stroke-width:2px
+    classDef secondary fill:#bbf,stroke:#333,stroke-width:2px
+    classDef tertiary fill:#bfb,stroke:#333,stroke-width:2px
+    
+    class VT,CT,DST primary
+    class VR,CR,DSR secondary
+    class H,M,L tertiary
 ```
 
 ### Redis Queue Data Flow
