@@ -1131,40 +1131,58 @@ Alur pemrosesan task dalam Redis Queue meliputi empat tahap utama:
    ```
 
 ```mermaid
-flowchart TB
-    subgraph Flow["Task Processing Flow"]
-        subgraph Submit["1. Task Submission"]
-            AG["API Gateway"]
-            TF["Task Format"]
-            AG --> TF
+graph TB
+    subgraph RQ["Redis Queue Architecture"]
+        subgraph Tasks["Task Queues"]
+            VT["Validation Tasks"]
+            CT["Consensus Tasks"]
+            DST["DAG State Tasks"]
         end
-
-        subgraph Process["2. Queue Processing"]
-            RO["Redis Operations"]
-            LPUSH["LPUSH - Add task"]
-            BRPOP["BRPOP - Get task"]
-            ZADD["ZADD - Priority set"]
-            RO --> LPUSH
-            RO --> BRPOP
-            RO --> ZADD
+        
+        subgraph Results["Result Queues"]
+            VR["Validation Results"]
+            CR["Consensus Results"]
+            DSR["DAG State Results"]
         end
-
-        subgraph Distribute["3. Task Distribution"]
-            W1["Worker 1"]
-            W2["Worker 2"]
-            WN["Worker N"]
+        
+        subgraph Management["Queue Management"]
+            TD["Task Distributor"]
+            PQ["Priority Manager"]
+            RM["Retry Handler"]
+            TM["TTL Monitor"]
+            BP["Batch Processor"]
         end
-
-        subgraph Result["4. Result Collection"]
-            RF["Result Format"]
-            RP["Result Processing"]
-            RF --> RP
+        
+        subgraph Priorities["Priority Levels"]
+            H["High Priority"]
+            M["Medium Priority"]
+            L["Low Priority"]
         end
     end
-
-    Submit --> Process
-    Process --> Distribute
-    Distribute --> Result
+    
+    VT --> TD
+    CT --> TD
+    DST --> TD
+    TD --> PQ
+    PQ --> H
+    PQ --> M
+    PQ --> L
+    H --> RM
+    M --> RM
+    L --> RM
+    RM --> TM
+    TM --> BP
+    BP --> VR
+    BP --> CR
+    BP --> DSR
+    
+    classDef primary fill:#f9f,stroke:#333,stroke-width:2px
+    classDef secondary fill:#bbf,stroke:#333,stroke-width:2px
+    classDef tertiary fill:#bfb,stroke:#333,stroke-width:2px
+    
+    class VT,CT,DST primary
+    class VR,CR,DSR secondary
+    class H,M,L tertiary
 ```
 
 ### Redis Queue State Management
