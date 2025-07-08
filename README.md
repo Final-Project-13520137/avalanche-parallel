@@ -1176,13 +1176,15 @@ graph TB
     BP --> CR
     BP --> DSR
     
-    classDef primary fill:#f9f,stroke:#333,stroke-width:2px
-    classDef secondary fill:#bbf,stroke:#333,stroke-width:2px
-    classDef tertiary fill:#bfb,stroke:#333,stroke-width:2px
+    classDef primary fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    classDef secondary fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
+    classDef tertiary fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px,color:#000
+    classDef management fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
     
     class VT,CT,DST primary
     class VR,CR,DSR secondary
     class H,M,L tertiary
+    class TD,PQ,RM,TM,BP management
 ```
 
 ### Redis Queue State Management
