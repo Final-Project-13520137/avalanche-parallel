@@ -639,7 +639,7 @@ Total Test Cases: 81 (3x3x3x3 configurations x 5 iterations)
    • Scaling efficiency
    • Resource utilization
    • Recommendations
-   ```
+```
 
 ## 🔧 Troubleshooting
 
