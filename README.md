@@ -1077,58 +1077,37 @@ Arsitektur Redis Queue terdiri dari beberapa komponen utama yang bekerja bersama
    - Batch Processing: Up to 100 tasks
 
 ```mermaid
-graph TB
-    subgraph RQ[Redis Queue Architecture]
-        subgraph Channels[Queue Channels]
-            direction TB
-            subgraph Tasks[Task Queues]
-                VT[Validation Tasks]
-                CT[Consensus Tasks]
-                DST[DAG State Tasks]
-            end
-            
-            subgraph Results[Result Queues]
-                VR[Validation Results]
-                CR[Consensus Results]
-                DSR[DAG State Results]
-            end
-        end
+graph TD
+    %% Task Queues
+    VT[Validation Tasks] --> TD
+    CT[Consensus Tasks] --> TD
+    DST[DAG State Tasks] --> TD
 
-        subgraph Management[Queue Management]
-            direction TB
-            TD[Task Distributor]
-            PQ[Priority Manager]
-            RM[Retry Handler]
-            TM[TTL Monitor]
-            BP[Batch Processor]
-        end
+    %% Queue Management
+    TD[Task Distributor] --> PQ
+    PQ[Priority Queue] --> HP & MP & LP
+    HP[High Priority] --> RM
+    MP[Medium Priority] --> RM
+    LP[Low Priority] --> RM
+    RM[Retry Manager] --> BP
+    BP[Batch Processor]
 
-        subgraph Priorities[Priority Levels]
-            H[High Priority]
-            M[Medium Priority]
-            L[Low Priority]
-        end
-    end
-
-    %% Task Flow
-    VT --> TD
-    CT --> TD
-    DST --> TD
-    TD --> PQ
-    PQ --> H & M & L
-    H & M & L --> RM
-    RM --> TM
-    TM --> BP
+    %% Results
     BP --> VR & CR & DSR
+    VR[Validation Results]
+    CR[Consensus Results]
+    DSR[DAG State Results]
 
-    %% Style
-    classDef primary fill:#f9f,stroke:#333,stroke-width:2px
-    classDef secondary fill:#bbf,stroke:#333,stroke-width:2px
-    classDef tertiary fill:#bfb,stroke:#333,stroke-width:2px
-    
-    class VT,CT,DST primary
-    class VR,CR,DSR secondary
-    class H,M,L tertiary
+    %% Styling
+    style VT fill:#f9f
+    style CT fill:#f9f
+    style DST fill:#f9f
+    style VR fill:#bbf
+    style CR fill:#bbf
+    style DSR fill:#bbf
+    style HP fill:#bfb
+    style MP fill:#bfb
+    style LP fill:#bfb
 ```
 
 ### Redis Queue Data Flow
