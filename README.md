@@ -1076,7 +1076,38 @@ Arsitektur Redis Queue terdiri dari beberapa komponen utama yang bekerja bersama
    - TTL: 30 seconds per task
    - Batch Processing: Up to 100 tasks
 
-[Diagram 1: Redis Queue Architecture]
+```mermaid
+flowchart TB
+    subgraph Redis["Redis Cluster"]
+        subgraph Channels["Queue Channels"]
+            VT["Validation Tasks"]
+            CT["Consensus Tasks"]
+            DST["DAG State Tasks"]
+            VR["Validation Results"]
+            CR["Consensus Results"]
+            DSR["DAG State Results"]
+        end
+        
+        subgraph Management["Queue Management"]
+            TD["Task Distribution<br/>Round-robin"]
+            PQ["Priority Queues<br/>3 levels per channel"]
+            RM["Retry Mechanism<br/>Max 3 attempts"]
+            TTL["TTL<br/>30s per task"]
+            BP["Batch Processing<br/>Up to 100 tasks"]
+        end
+    end
+
+    VT --> TD
+    CT --> TD
+    DST --> TD
+    TD --> PQ
+    PQ --> RM
+    RM --> TTL
+    TTL --> BP
+    BP --> VR
+    BP --> CR
+    BP --> DSR
+```
 
 ### Redis Queue Data Flow
 
@@ -1116,7 +1147,42 @@ Alur pemrosesan task dalam Redis Queue meliputi empat tahap utama:
    }
    ```
 
-[Diagram 2: Redis Queue Data Flow]
+```mermaid
+flowchart TB
+    subgraph Flow["Task Processing Flow"]
+        subgraph Submit["1. Task Submission"]
+            AG["API Gateway"]
+            TF["Task Format"]
+            AG --> TF
+        end
+
+        subgraph Process["2. Queue Processing"]
+            RO["Redis Operations"]
+            LPUSH["LPUSH - Add task"]
+            BRPOP["BRPOP - Get task"]
+            ZADD["ZADD - Priority set"]
+            RO --> LPUSH
+            RO --> BRPOP
+            RO --> ZADD
+        end
+
+        subgraph Distribute["3. Task Distribution"]
+            W1["Worker 1"]
+            W2["Worker 2"]
+            WN["Worker N"]
+        end
+
+        subgraph Result["4. Result Collection"]
+            RF["Result Format"]
+            RP["Result Processing"]
+            RF --> RP
+        end
+    end
+
+    Submit --> Process
+    Process --> Distribute
+    Distribute --> Result
+```
 
 ### Redis Queue State Management
 
@@ -1140,7 +1206,29 @@ Task Lifecycle dan State Management:
    - Timeout Errors: Retry with backoff
    - System Errors: Alert and retry
 
-[Diagram 3: Redis Queue States]
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> Processing
+    Processing --> Failed
+    Processing --> Completed
+    Failed --> Retrying
+    Retrying --> Pending
+    Completed --> [*]
+
+    state Metrics {
+        QueueDepth: Current/Average/Peak
+        ProcessingRate: Tasks per second
+        CompletionRate: Success/Error/Retry
+    }
+
+    state ErrorHandling {
+        ValidationErrors: No retry
+        NetworkErrors: Retry
+        TimeoutErrors: Retry with backoff
+        SystemErrors: Alert and retry
+    }
+```
 
 ### Redis Queue Performance Characteristics
 
@@ -1170,4 +1258,26 @@ Performance metrics dan karakteristik sistem:
      - Outbound: 30MB/s
      - Connections: 1000/node
 
-[Diagram 4: Redis Queue Performance]
+```mermaid
+graph TB
+    subgraph Performance["Performance Metrics"]
+        subgraph Throughput["Throughput"]
+            VQ["Validation Queue<br/>50,000 tasks/sec"]
+            CQ["Consensus Queue<br/>25,000 tasks/sec"]
+            DSQ["DAG State Queue<br/>15,000 tasks/sec"]
+        end
+
+        subgraph Latency["Latency (ms)"]
+            QP["Queue Push<br/>Avg: 0.3ms<br/>Max: 1.0ms"]
+            QPop["Queue Pop<br/>Avg: 0.5ms<br/>Max: 2.0ms"]
+            PU["Priority Update<br/>Avg: 0.2ms<br/>Max: 0.8ms"]
+            RW["Result Write<br/>Avg: 0.4ms<br/>Max: 1.5ms"]
+            BP["Batch Process<br/>Avg: 5.0ms<br/>Max: 15ms"]
+        end
+
+        subgraph Resources["Resource Usage"]
+            MEM["Memory<br/>Base: 2GB<br/>+100MB per 10k tasks"]
+            NET["Network I/O<br/>Inbound: 50MB/s<br/>Outbound: 30MB/s"]
+        end
+    end
+```
