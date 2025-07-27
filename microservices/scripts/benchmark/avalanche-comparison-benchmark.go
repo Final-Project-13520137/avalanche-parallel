@@ -99,6 +99,82 @@ func getRunningWorkerCounts() (types.WorkerConfig, error) {
 	return config, nil
 }
 
+// scaleWorkerPools scales the worker pools to the specified configuration
+func scaleWorkerPools(workerConfig types.WorkerConfig) error {
+	log.Printf("🔧 Scaling worker pools to: Validators: %d, Consensus: %d, DAG State: %d",
+		workerConfig.ValidatorWorkers, workerConfig.ConsensusWorkers, workerConfig.DagStateWorkers)
+
+	// Scale using docker-compose
+	cmd := exec.Command("docker-compose", "-f", "../../docker-compose.worker-pools.yml", "up", "-d",
+		"--scale", fmt.Sprintf("validator-worker=%d", workerConfig.ValidatorWorkers),
+		"--scale", fmt.Sprintf("consensus-worker=%d", workerConfig.ConsensusWorkers),
+		"--scale", fmt.Sprintf("dag-state-worker=%d", workerConfig.DagStateWorkers))
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to scale worker pools: %v, output: %s", err, string(output))
+	}
+
+	// Wait for services to stabilize
+	log.Printf("⏳ Waiting for worker pools to stabilize...")
+	time.Sleep(30 * time.Second)
+
+	// Verify scaling was successful
+	actualConfig, err := getRunningWorkerCounts()
+	if err != nil {
+		return fmt.Errorf("failed to verify scaling: %v", err)
+	}
+
+	log.Printf("✅ Scaling completed. Actual workers: Validators: %d, Consensus: %d, DAG State: %d",
+		actualConfig.ValidatorWorkers, actualConfig.ConsensusWorkers, actualConfig.DagStateWorkers)
+
+	// Check if scaling was successful (allow some tolerance)
+	if actualConfig.ValidatorWorkers < workerConfig.ValidatorWorkers ||
+		actualConfig.ConsensusWorkers < workerConfig.ConsensusWorkers ||
+		actualConfig.DagStateWorkers < workerConfig.DagStateWorkers {
+		log.Printf("⚠️ Warning: Scaling may not have achieved target configuration")
+	}
+
+	return nil
+}
+
+// waitForWorkersReady waits for all workers to be ready
+func waitForWorkersReady() error {
+	log.Printf("⏳ Waiting for all workers to be ready...")
+
+	// Check health endpoints with retries
+	healthEndpoints := []string{
+		"http://localhost:8081/health", // validator-haproxy
+		"http://localhost:8082/health", // consensus-haproxy
+		"http://localhost:8083/health", // dag-state-haproxy
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	maxRetries := 12 // 60 seconds total with 5s intervals
+
+	for _, endpoint := range healthEndpoints {
+		for retry := 0; retry < maxRetries; retry++ {
+			resp, err := client.Get(endpoint)
+			if err == nil && resp.StatusCode == http.StatusOK {
+				resp.Body.Close()
+				break
+			}
+			if resp != nil {
+				resp.Body.Close()
+			}
+
+			if retry == maxRetries-1 {
+				return fmt.Errorf("worker endpoint %s not ready after %d retries", endpoint, maxRetries)
+			}
+
+			time.Sleep(5 * time.Second)
+		}
+	}
+
+	log.Printf("✅ All workers are ready")
+	return nil
+}
+
 func main() {
 	log.Println("🚀 Starting Avalanche Microservices vs Monolith Benchmark with API Gateway Integration")
 
@@ -135,46 +211,58 @@ func main() {
 		workerConfig.ConsensusWorkers,
 		workerConfig.DagStateWorkers)
 
-	// Load configuration with API Gateway integration
+	// Define multiple worker configurations for varied testing
+	workerVariations := []types.WorkerConfig{
+		{ValidatorWorkers: 1, ConsensusWorkers: 1, DagStateWorkers: 1},   // Minimal
+		{ValidatorWorkers: 3, ConsensusWorkers: 2, DagStateWorkers: 2},   // Small
+		{ValidatorWorkers: 6, ConsensusWorkers: 4, DagStateWorkers: 3},   // Medium
+		{ValidatorWorkers: 9, ConsensusWorkers: 6, DagStateWorkers: 4},   // Large
+		{ValidatorWorkers: 12, ConsensusWorkers: 8, DagStateWorkers: 6},  // High
+		{ValidatorWorkers: 15, ConsensusWorkers: 10, DagStateWorkers: 8}, // Maximum
+	}
+
+	// Create test cases with worker variations
+	var testCases []types.TestCase
+
+	// Base test scenarios
+	baseScenarios := []struct {
+		name       string
+		txCount    int
+		users      int
+		size       int
+		txType     string
+		complexity int
+	}{
+		{"Small_Load_1K_Transactions", 1000, 10, 256, "transfer", 1},
+		{"Medium_Load_5K_Transactions", 5000, 25, 512, "transfer", 2},
+		{"Large_Load_10K_Transactions", 10000, 50, 1024, "contract", 3},
+		{"High_Load_20K_Transactions", 20000, 100, 2048, "contract", 4},
+	}
+
+	// Generate test cases for each worker variation
+	for _, scenario := range baseScenarios {
+		for i, workerConfig := range workerVariations {
+			testCase := types.TestCase{
+				Name:             fmt.Sprintf("%s_Workers_%d_%d_%d", scenario.name, workerConfig.ValidatorWorkers, workerConfig.ConsensusWorkers, workerConfig.DagStateWorkers),
+				TransactionCount: scenario.txCount,
+				ConcurrentUsers:  scenario.users,
+				TransactionSize:  scenario.size,
+				TransactionType:  scenario.txType,
+				ComplexityFactor: scenario.complexity,
+				WorkerConfig:     workerConfig,
+			}
+			testCases = append(testCases, testCase)
+
+			// Limit to reasonable number of variations for demo
+			if i >= 2 { // Only test minimal, small, and medium configurations
+				break
+			}
+		}
+	}
+
+	// Load configuration with varied worker pools
 	config := types.BenchmarkConfig{
-		TestCases: []types.TestCase{
-			{
-				Name:             "Small_Load_API_Gateway",
-				TransactionCount: 1000,
-				ConcurrentUsers:  5,
-				TransactionSize:  256,
-				TransactionType:  "transfer",
-				ComplexityFactor: 1,
-				WorkerConfig:     workerConfig, // Use actual worker counts
-			},
-			{
-				Name:             "Medium_Load_Gateway_Balanced",
-				TransactionCount: 5000,
-				ConcurrentUsers:  15,
-				TransactionSize:  512,
-				TransactionType:  "transfer",
-				ComplexityFactor: 2,
-				WorkerConfig:     workerConfig, // Use actual worker counts
-			},
-			{
-				Name:             "High_Load_Gateway_Scaling",
-				TransactionCount: 10000,
-				ConcurrentUsers:  30,
-				TransactionSize:  1024,
-				TransactionType:  "contract",
-				ComplexityFactor: 3,
-				WorkerConfig:     workerConfig, // Use actual worker counts
-			},
-			{
-				Name:             "Max_Load_Gateway_Full_Scale",
-				TransactionCount: 20000,
-				ConcurrentUsers:  50,
-				TransactionSize:  2048,
-				TransactionType:  "contract",
-				ComplexityFactor: 4,
-				WorkerConfig:     workerConfig, // Use actual worker counts
-			},
-		},
+		TestCases:        testCases,
 		ResultsDir:       resultsDir,
 		GraphsDir:        graphsDir,
 		MonolithEndpoint: "http://localhost:9650",
@@ -247,6 +335,18 @@ func main() {
 
 	for _, testCase := range config.TestCases {
 		log.Printf("🔄 Running test case: %s", testCase.Name)
+
+		// Scale worker pools before running the test
+		if err := scaleWorkerPools(testCase.WorkerConfig); err != nil {
+			log.Printf("❌ Failed to scale worker pools for %s: %v", testCase.Name, err)
+			continue
+		}
+
+		// Wait for workers to be ready
+		if err := waitForWorkersReady(); err != nil {
+			log.Printf("❌ Failed to wait for workers to be ready for %s: %v", testCase.Name, err)
+			continue
+		}
 
 		// Configure worker pools through API Gateway
 		if err := configureWorkerPools(apiGatewayClient, testCase.WorkerConfig); err != nil {

@@ -148,6 +148,7 @@ func (ab *AvalancheBenchmark) RunMicroservicesBenchmark(testCase TestCase) (Benc
 	result := BenchmarkResult{
 		TestCase:          testCase,
 		Architecture:      "microservices",
+		WorkerConfig:      testCase.WorkerConfig, // Include worker configuration
 		TotalTransactions: len(transactions),
 		SuccessfulTxs:     successCount,
 		FailedTxs:         failureCount,
@@ -198,6 +199,7 @@ func (ab *AvalancheBenchmark) RunMonolithBenchmark(testCase TestCase) (Benchmark
 	result := BenchmarkResult{
 		TestCase:          testCase,
 		Architecture:      "monolith",
+		WorkerConfig:      WorkerConfig{ValidatorWorkers: 1, ConsensusWorkers: 1, DagStateWorkers: 1}, // Monolith uses single instance
 		TotalTransactions: len(transactions),
 		SuccessfulTxs:     successCount,
 		FailedTxs:         failureCount,
@@ -859,96 +861,116 @@ func (ab *AvalancheBenchmark) GenerateGraphs() error {
 	return nil
 }
 
-// CreateThroughputCSV creates CSV data for throughput comparison
+// CreateThroughputCSV creates CSV file with throughput comparison including worker configuration
 func (ab *AvalancheBenchmark) CreateThroughputCSV(filename string) error {
+	ab.ResultsMutex.RLock()
+	defer ab.ResultsMutex.RUnlock()
+
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	fmt.Fprintf(file, "TestCase,TransactionCount,Microservices_TPS,Monolith_TPS,Speedup\n")
+	// Updated header to include worker configuration
+	file.WriteString("TestCase,TransactionCount,Architecture,ValidatorWorkers,ConsensusWorkers,DagStateWorkers,TotalWorkers,ThroughputTPS,LatencyMs\n")
 
-	// Group results by test case
-	testCaseResults := make(map[string][]BenchmarkResult)
 	for _, result := range ab.Results {
-		testCaseResults[result.TestCase.Name] = append(testCaseResults[result.TestCase.Name], result)
-	}
+		totalWorkers := result.WorkerConfig.ValidatorWorkers + result.WorkerConfig.ConsensusWorkers + result.WorkerConfig.DagStateWorkers
 
-	for testCaseName, results := range testCaseResults {
-		var microResult, monolithResult BenchmarkResult
-		for _, result := range results {
-			if result.Architecture == "microservices" {
-				microResult = result
-			} else {
-				monolithResult = result
-			}
-		}
+		line := fmt.Sprintf("%s,%d,%s,%d,%d,%d,%d,%.2f,%.2f\n",
+			result.TestCase.Name,
+			result.TestCase.TransactionCount,
+			result.Architecture,
+			result.WorkerConfig.ValidatorWorkers,
+			result.WorkerConfig.ConsensusWorkers,
+			result.WorkerConfig.DagStateWorkers,
+			totalWorkers,
+			result.ThroughputTPS,
+			float64(result.AverageLatency.Nanoseconds())/1e6,
+		)
 
-		if microResult.Architecture != "" && monolithResult.Architecture != "" {
-			speedup := microResult.ThroughputTPS / monolithResult.ThroughputTPS
-			fmt.Fprintf(file, "%s,%d,%.2f,%.2f,%.2f\n",
-				testCaseName, microResult.TestCase.TransactionCount,
-				microResult.ThroughputTPS, monolithResult.ThroughputTPS, speedup)
+		if _, err := file.WriteString(line); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-// CreateLatencyCSV creates CSV data for latency comparison
+// CreateLatencyCSV creates CSV file with latency comparison including worker configuration
 func (ab *AvalancheBenchmark) CreateLatencyCSV(filename string) error {
+	ab.ResultsMutex.RLock()
+	defer ab.ResultsMutex.RUnlock()
+
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	fmt.Fprintf(file, "TestCase,TransactionCount,Microservices_Avg_Latency_ms,Monolith_Avg_Latency_ms,Microservices_P95_ms,Monolith_P95_ms\n")
+	// Updated header to include worker configuration
+	file.WriteString("TestCase,TransactionCount,Architecture,ValidatorWorkers,ConsensusWorkers,DagStateWorkers,TotalWorkers,AvgLatencyMs,MedianLatencyMs,P95LatencyMs,P99LatencyMs\n")
 
-	// Group results by test case
-	testCaseResults := make(map[string][]BenchmarkResult)
 	for _, result := range ab.Results {
-		testCaseResults[result.TestCase.Name] = append(testCaseResults[result.TestCase.Name], result)
-	}
+		totalWorkers := result.WorkerConfig.ValidatorWorkers + result.WorkerConfig.ConsensusWorkers + result.WorkerConfig.DagStateWorkers
 
-	for testCaseName, results := range testCaseResults {
-		var microResult, monolithResult BenchmarkResult
-		for _, result := range results {
-			if result.Architecture == "microservices" {
-				microResult = result
-			} else {
-				monolithResult = result
-			}
-		}
+		line := fmt.Sprintf("%s,%d,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f\n",
+			result.TestCase.Name,
+			result.TestCase.TransactionCount,
+			result.Architecture,
+			result.WorkerConfig.ValidatorWorkers,
+			result.WorkerConfig.ConsensusWorkers,
+			result.WorkerConfig.DagStateWorkers,
+			totalWorkers,
+			float64(result.AverageLatency.Nanoseconds())/1e6,
+			float64(result.MedianLatency.Nanoseconds())/1e6,
+			float64(result.P95Latency.Nanoseconds())/1e6,
+			float64(result.P99Latency.Nanoseconds())/1e6,
+		)
 
-		if microResult.Architecture != "" && monolithResult.Architecture != "" {
-			fmt.Fprintf(file, "%s,%d,%.2f,%.2f,%.2f,%.2f\n",
-				testCaseName, microResult.TestCase.TransactionCount,
-				float64(microResult.AverageLatency.Nanoseconds())/1e6,
-				float64(monolithResult.AverageLatency.Nanoseconds())/1e6,
-				float64(microResult.P95Latency.Nanoseconds())/1e6,
-				float64(monolithResult.P95Latency.Nanoseconds())/1e6)
+		if _, err := file.WriteString(line); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-// CreateResourceUsageCSV creates CSV data for resource usage comparison
+// CreateResourceUsageCSV creates CSV file with resource usage including worker configuration
 func (ab *AvalancheBenchmark) CreateResourceUsageCSV(filename string) error {
+	ab.ResultsMutex.RLock()
+	defer ab.ResultsMutex.RUnlock()
+
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	fmt.Fprintf(file, "TestCase,Architecture,CPU_Percent,Memory_MB,Network_MB\n")
+	// Updated header to include worker configuration
+	file.WriteString("TestCase,TransactionCount,Architecture,ValidatorWorkers,ConsensusWorkers,DagStateWorkers,TotalWorkers,CPUPercent,MemoryMB,NetworkMB,ThroughputTPS\n")
 
 	for _, result := range ab.Results {
-		fmt.Fprintf(file, "%s,%s,%.1f,%.1f,%.1f\n",
-			result.TestCase.Name, result.Architecture,
-			result.CPUUsagePercent, result.MemoryUsageMB, result.NetworkBandwidthMB)
+		totalWorkers := result.WorkerConfig.ValidatorWorkers + result.WorkerConfig.ConsensusWorkers + result.WorkerConfig.DagStateWorkers
+
+		line := fmt.Sprintf("%s,%d,%s,%d,%d,%d,%d,%.2f,%.2f,%.2f,%.2f\n",
+			result.TestCase.Name,
+			result.TestCase.TransactionCount,
+			result.Architecture,
+			result.WorkerConfig.ValidatorWorkers,
+			result.WorkerConfig.ConsensusWorkers,
+			result.WorkerConfig.DagStateWorkers,
+			totalWorkers,
+			result.CPUUsagePercent,
+			result.MemoryUsageMB,
+			result.NetworkBandwidthMB,
+			result.ThroughputTPS,
+		)
+
+		if _, err := file.WriteString(line); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -1052,6 +1074,7 @@ func (ab *AvalancheBenchmark) RunMicroservicesBenchmarkWithGateway(testCase Test
 	result := BenchmarkResult{
 		TestCase:          testCase,
 		Architecture:      "microservices-gateway",
+		WorkerConfig:      testCase.WorkerConfig, // Include worker configuration
 		TotalTransactions: len(transactions),
 		SuccessfulTxs:     successCount,
 		FailedTxs:         failureCount,

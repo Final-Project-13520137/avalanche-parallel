@@ -413,29 +413,79 @@ echo -e "  - Consensus Workers: ${consensus_active} containers"
 echo -e "  - DAG+State Workers: ${dag_state_active} containers"
 echo -e "  - Total Active Workers: $((validator_active + consensus_active + dag_state_active)) containers"
 
-# Run test cases
-echo -e "\n${YELLOW}Running benchmark test cases...${NC}"
-echo -e "${BLUE}Note: Existing workers will be preserved. Only scaling UP when needed.${NC}\n"
+# Run test cases with worker variations
+echo -e "\n${YELLOW}Running benchmark test cases with worker variations...${NC}"
+echo -e "${BLUE}Note: Each test case will be run with different worker configurations.${NC}\n"
 
-# Test Case 1: Small Load (Minimum Workers)
-echo -e "${CYAN}📋 Test Case 1: Small Load Test${NC}"
-echo -e "${BLUE}Minimum requirement: 3 Validator, 2 Consensus, 2 DAG+State workers${NC}"
-run_test_case "Small_Load_Validator_Only" 3 2 2
+# Test Case 1: Small Load with Different Worker Configurations
+echo -e "${CYAN}📋 Test Case Group 1: Small Load (1K Transactions)${NC}"
+echo -e "${BLUE}Testing with minimal, small, and medium worker configurations${NC}"
 
-# Test Case 2: Medium Load (Balanced)
-echo -e "\n${CYAN}📋 Test Case 2: Medium Load Test${NC}"
-echo -e "${BLUE}Minimum requirement: 6 Validator, 4 Consensus, 3 DAG+State workers${NC}"
-run_test_case "Medium_Load_Balanced" 6 4 3
+# Test Case 2: Medium Load with Different Worker Configurations  
+echo -e "\n${CYAN}📋 Test Case Group 2: Medium Load (5K Transactions)${NC}"
+echo -e "${BLUE}Testing with minimal, small, and medium worker configurations${NC}"
 
-# Test Case 3: High Load (Consensus Heavy)
-echo -e "\n${CYAN}📋 Test Case 3: High Load Test${NC}"
-echo -e "${BLUE}Minimum requirement: 9 Validator, 6 Consensus, 4 DAG+State workers${NC}"
-run_test_case "High_Load_Consensus_Heavy" 9 6 4
+# Test Case 3: Large Load with Different Worker Configurations
+echo -e "\n${CYAN}📋 Test Case Group 3: Large Load (10K Transactions)${NC}"
+echo -e "${BLUE}Testing with minimal, small, and medium worker configurations${NC}"
 
-# Test Case 4: Maximum Load (Full Scale)
-echo -e "\n${CYAN}📋 Test Case 4: Maximum Load Test${NC}"
-echo -e "${BLUE}Minimum requirement: 15 Validator, 10 Consensus, 8 DAG+State workers${NC}"
-run_test_case "Max_Load_Full_Scale" 15 10 8
+# Test Case 4: High Load with Different Worker Configurations
+echo -e "\n${CYAN}📋 Test Case Group 4: High Load (20K Transactions)${NC}"
+echo -e "${BLUE}Testing with minimal, small, and medium worker configurations${NC}"
+
+# Expected worker variations that will be tested:
+echo -e "\n${GREEN}📊 Worker Configurations to be tested:${NC}"
+echo -e "${BLUE}1. Minimal:  1 Validator, 1 Consensus, 1 DAG+State (3 total)${NC}"
+echo -e "${BLUE}2. Small:    3 Validator, 2 Consensus, 2 DAG+State (7 total)${NC}"
+echo -e "${BLUE}3. Medium:   6 Validator, 4 Consensus, 3 DAG+State (13 total)${NC}"
+echo -e "${BLUE}Total test combinations: 4 scenarios × 3 worker configs = 12 test cases${NC}\n"
+
+# Run the benchmark binary (which now handles worker variations internally)
+export TEST_CASE="worker_variations"
+export ENABLE_WORKER_VARIATIONS=true
+
+./avalanche-benchmark &
+BENCHMARK_PID=$!
+
+# Enhanced progress tracking for worker variations
+test_count=0
+total_tests=12  # 4 scenarios × 3 worker configs
+
+while kill -0 $BENCHMARK_PID 2>/dev/null; do
+    for i in $(seq 0 ${#SPINNER}); do
+        test_progress=$((test_count * 100 / total_tests))
+        printf "\r${BLUE}${SPINNER:$i:1}${NC} Running worker variation tests... [${test_progress}%%] (${test_count}/${total_tests})"
+        sleep 0.2
+    done
+done
+
+if wait $BENCHMARK_PID; then
+    echo -e "\r✓ All worker variation tests completed successfully!\n"
+    
+    # Display summary of worker configurations tested
+    echo -e "${GREEN}📊 Worker Variation Test Summary:${NC}"
+    
+    # Count the actual results
+    if [ -d "$RESULTS_DIR" ]; then
+        result_count=$(find "$RESULTS_DIR" -name "benchmark_results_*.json" -newer . 2>/dev/null | wc -l)
+        echo -e "${BLUE}Results generated: ${result_count} benchmark files${NC}"
+        
+        # Show the latest results file
+        latest_result=$(find "$RESULTS_DIR" -name "benchmark_results_*.json" -print0 | xargs -0 ls -t | head -1)
+        if [ -n "$latest_result" ]; then
+            echo -e "${BLUE}Latest results: $(basename "$latest_result")${NC}"
+            
+            # Extract worker configurations from the results (if jq is available)
+            if command -v jq >/dev/null 2>&1; then
+                echo -e "\n${YELLOW}Worker configurations tested:${NC}"
+                jq -r '.[] | "\(.test_case.name): \(.worker_config.validator_workers)V, \(.worker_config.consensus_workers)C, \(.worker_config.dag_state_workers)D (\(.architecture))"' "$latest_result" 2>/dev/null | head -10 || echo "Could not parse worker configurations"
+            fi
+        fi
+    fi
+else
+    echo -e "\n${RED}❌ Worker variation tests failed${NC}"
+    return 1
+fi
 
 # Generate final reports and graphs
 echo -e "${YELLOW}Generating benchmark graphs...${NC}"
@@ -447,6 +497,47 @@ if [ $? -ne 0 ]; then
 fi
 else
     echo -e "${YELLOW}Graph generator not found, skipping graph generation${NC}"
+fi
+
+# Generate worker performance analysis
+echo -e "\n${YELLOW}Generating worker performance analysis...${NC}"
+if [ -f "analyze_worker_performance.py" ]; then
+    python3 -m pip install -r requirements.txt > /dev/null 2>&1 &
+    show_spinner $! "Installing Python dependencies"
+    
+    python3 analyze_worker_performance.py "$RESULTS_DIR" "$GRAPHS_DIR" &
+    show_spinner $! "Analyzing worker performance patterns"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Worker performance analysis completed${NC}"
+        echo -e "${BLUE}Analysis results:${NC}"
+        echo -e "  - worker_performance_analysis.png"
+        echo -e "  - cpu_usage_analysis.png"
+        echo -e "  - worker_performance_report.md"
+    else
+        echo -e "\n${RED}Failed to generate worker performance analysis${NC}"
+    fi
+else
+    echo -e "${YELLOW}Worker performance analyzer not found, skipping analysis${NC}"
+fi
+
+# Generate worker variation analysis (new)
+echo -e "\n${YELLOW}Generating worker variation analysis...${NC}"
+if [ -f "analyze_worker_variations.py" ]; then
+    python3 analyze_worker_variations.py "$RESULTS_DIR" "${GRAPHS_DIR}/worker_variations" &
+    show_spinner $! "Analyzing worker variation patterns"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Worker variation analysis completed${NC}"
+        echo -e "${BLUE}Variation analysis results:${NC}"
+        echo -e "  - worker_variation_analysis.png"
+        echo -e "  - worker_configuration_table.png"
+        echo -e "  - worker_variation_report.md"
+    else
+        echo -e "\n${RED}Failed to generate worker variation analysis${NC}"
+    fi
+else
+    echo -e "${YELLOW}Worker variation analyzer not found, skipping variation analysis${NC}"
 fi
 
 # Ask user if they want to keep services running

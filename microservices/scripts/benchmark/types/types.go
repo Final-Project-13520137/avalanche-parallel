@@ -91,6 +91,7 @@ type WorkerConfig struct {
 type BenchmarkResult struct {
 	TestCase             TestCase      `json:"test_case"`
 	Architecture         string        `json:"architecture"`
+	WorkerConfig         WorkerConfig  `json:"worker_config"` // Added: Worker configuration used for this test
 	TotalTransactions    int           `json:"total_transactions"`
 	SuccessfulTxs        int           `json:"successful_transactions"`
 	FailedTxs            int           `json:"failed_transactions"`
