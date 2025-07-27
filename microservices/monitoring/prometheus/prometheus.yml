@@ -1,0 +1,148 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'avalanche-parallel'
+    environment: 'development'
+
+rule_files:
+  - "alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node Exporter - Host metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # cAdvisor - Container metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # Redis metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # PostgreSQL metrics
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Worker Pool Discovery - Auto discover worker services
+  - job_name: 'worker-pools'
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        port: 8080
+    relabel_configs:
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        regex: worker-pool-.*
+        action: keep
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: service
+      - source_labels: [__meta_docker_container_name]
+        target_label: container
+      - source_labels: [__meta_docker_container_label_worker_type]
+        target_label: worker_type
+      - source_labels: [__meta_docker_container_label_pool_id]
+        target_label: pool_id
+
+  # Consensus Workers
+  - job_name: 'consensus-workers'
+    static_configs:
+      - targets: 
+        - 'consensus-worker-1:8080'
+        - 'consensus-worker-2:8080'
+        - 'consensus-worker-3:8080'
+        - 'consensus-worker-4:8080'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+
+  # DAG State Workers
+  - job_name: 'dag-state-workers'
+    static_configs:
+      - targets:
+        - 'dag-state-worker-1:8080'
+        - 'dag-state-worker-2:8080'
+        - 'dag-state-worker-3:8080'
+        - 'dag-state-worker-4:8080'
+        - 'dag-state-worker-5:8080'
+        - 'dag-state-worker-6:8080'
+        - 'dag-state-worker-7:8080'
+        - 'dag-state-worker-8:8080'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+
+  # Validator Workers
+  - job_name: 'validator-workers'
+    static_configs:
+      - targets:
+        - 'validator-worker-1:8080'
+        - 'validator-worker-2:8080'
+        - 'validator-worker-3:8080'
+        - 'validator-worker-4:8080'
+        - 'validator-worker-5:8080'
+        - 'validator-worker-6:8080'
+        - 'validator-worker-7:8080'
+        - 'validator-worker-8:8080'
+        - 'validator-worker-9:8080'
+        - 'validator-worker-10:8080'
+        - 'validator-worker-11:8080'
+        - 'validator-worker-12:8080'
+        - 'validator-worker-13:8080'
+        - 'validator-worker-14:8080'
+        - 'validator-worker-15:8080'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+
+  # LoadBalancer
+  - job_name: 'loadbalancer'
+    static_configs:
+      - targets: ['loadbalancer:9090']
+    metrics_path: '/metrics'
+
+  # API Gateway
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:8080']
+    metrics_path: '/metrics'
+
+  # Benchmark Service
+  - job_name: 'benchmark-service'
+    static_configs:
+      - targets: ['benchmark-service:8080']
+    metrics_path: '/metrics'
+
+  # OTEL Collector
+  - job_name: 'otel-collector'
+    static_configs:
+      - targets: ['otel-collector:8888']
+    metrics_path: '/metrics'
+
+  # Custom service discovery for dynamic worker pools
+  - job_name: 'dynamic-workers'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['worker-pool']
+    relabel_configs:
+      - source_labels: [__meta_consul_service]
+        target_label: service
+      - source_labels: [__meta_consul_node]
+        target_label: node
+      - source_labels: [__meta_consul_tags]
+        regex: '.*,worker_type:([^,]+),.*'
+        target_label: worker_type
+      - source_labels: [__meta_consul_tags]
+        regex: '.*,pool_id:([^,]+),.*'
+        target_label: pool_id 

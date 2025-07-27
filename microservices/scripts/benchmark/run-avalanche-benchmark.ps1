@@ -117,9 +117,13 @@ function Initialize-Environment {
     Set-Location $ScriptDir
     
     go mod tidy
-    go build -o avalanche-benchmark.exe avalanche-comparison-benchmark.go
-    
-    if (!(Test-Path "avalanche-benchmark.exe")) {
+    # Build from correct source
+$AvancheRoot = (Get-Item (Join-Path $ScriptDir "../../../../")).FullName
+Push-Location $AvancheRoot
+go build -o "microservices/scripts/benchmark/benchmark-sim.exe" scripts/standalone/benchmark_sim.go
+Pop-Location
+
+if (!(Test-Path "benchmark-sim.exe")) {
         Write-Error "Failed to build benchmark binary"
         exit 1
     }
@@ -191,7 +195,7 @@ function Start-Benchmark {
     $env:MONOLITH_ENDPOINT = "http://localhost:9650"
     
     # Run the benchmark
-    & .\avalanche-benchmark.exe
+    & .\benchmark-sim.exe
     
     if ($LASTEXITCODE -eq 0) {
         Write-Success "Benchmark completed successfully"

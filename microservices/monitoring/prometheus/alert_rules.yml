@@ -1,0 +1,212 @@
+groups:
+  - name: avalanche-worker-pools
+    rules:
+      # Worker Pool Health
+      - alert: WorkerPoolDown
+        expr: up{job=~".*-workers"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Worker pool {{ $labels.instance }} is down"
+          description: "Worker pool {{ $labels.instance }} has been down for more than 30 seconds."
+
+      - alert: HighWorkerMemoryUsage
+        expr: (container_memory_usage_bytes{name=~".*worker.*"} / container_spec_memory_limit_bytes{name=~".*worker.*"}) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on worker {{ $labels.name }}"
+          description: "Worker {{ $labels.name }} is using {{ $value }}% of available memory."
+
+      - alert: HighWorkerCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{name=~".*worker.*"}[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on worker {{ $labels.name }}"
+          description: "Worker {{ $labels.name }} is using {{ $value }}% CPU for more than 5 minutes."
+
+      # Consensus Metrics
+      - alert: LowConsensusPerformance
+        expr: rate(consensus_transactions_processed_total[5m]) < 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low consensus transaction processing rate"
+          description: "Consensus is processing fewer than 100 transactions per second: {{ $value }} TPS"
+
+      - alert: ConsensusFailureRate
+        expr: rate(consensus_failures_total[5m]) / rate(consensus_transactions_total[5m]) > 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High consensus failure rate"
+          description: "Consensus failure rate is {{ $value | humanizePercentage }}"
+
+      # DAG State Metrics
+      - alert: DAGStateBacklog
+        expr: dag_state_pending_operations > 1000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High DAG state operation backlog"
+          description: "DAG state has {{ $value }} pending operations"
+
+      - alert: DAGStateSyncLag
+        expr: time() - dag_state_last_sync_timestamp > 300
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DAG state sync lag detected"
+          description: "DAG state hasn't synced for {{ $value }} seconds"
+
+      # Validator Metrics
+      - alert: ValidatorOffline
+        expr: validator_online_status == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Validator {{ $labels.validator_id }} is offline"
+          description: "Validator {{ $labels.validator_id }} has been offline for more than 1 minute"
+
+      - alert: LowValidatorStake
+        expr: validator_stake_amount < validator_minimum_stake
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low validator stake for {{ $labels.validator_id }}"
+          description: "Validator {{ $labels.validator_id }} stake is below minimum: {{ $value }}"
+
+      # System Resources
+      - alert: HighDiskUsage
+        expr: (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_free_bytes{mountpoint="/"}) / node_filesystem_size_bytes{mountpoint="/"} * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High disk usage"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighCPULoad
+        expr: node_load1 > 0.8 * count(node_cpu_seconds_total{mode="idle"}) by (instance)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU load"
+          description: "CPU load is {{ $value }} on {{ $labels.instance }}"
+
+      # Network Performance
+      - alert: HighNetworkLatency
+        expr: network_latency_seconds > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High network latency detected"
+          description: "Network latency is {{ $value }}s between {{ $labels.source }} and {{ $labels.target }}"
+
+      - alert: NetworkPacketLoss
+        expr: rate(network_packets_lost_total[5m]) / rate(network_packets_total[5m]) > 0.01
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Network packet loss detected"
+          description: "Packet loss rate is {{ $value | humanizePercentage }}"
+
+      # Database Metrics
+      - alert: DatabaseConnectionLimit
+        expr: pg_stat_database_numbackends / pg_settings_max_connections * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database connection usage"
+          description: "Database connection usage is {{ $value }}%"
+
+      - alert: DatabaseSlowQueries
+        expr: rate(pg_stat_database_tup_fetched[5m]) / rate(pg_stat_database_tup_returned[5m]) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database slow query performance"
+          description: "Database query efficiency is low: {{ $value }}"
+
+      # Redis Metrics
+      - alert: RedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value }}%"
+
+      - alert: RedisConnectionSpike
+        expr: redis_connected_clients > 100
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Redis connection count"
+          description: "Redis has {{ $value }} connected clients"
+
+  - name: avalanche-throughput
+    rules:
+      # Throughput Monitoring
+      - alert: LowTransactionThroughput
+        expr: rate(avalanche_transactions_processed_total[5m]) < 500
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low transaction throughput"
+          description: "Transaction throughput is {{ $value }} TPS, below expected minimum of 500 TPS"
+
+      - alert: ThroughputDropped
+        expr: (rate(avalanche_transactions_processed_total[5m]) / rate(avalanche_transactions_processed_total[5m] offset 10m)) < 0.7
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Transaction throughput dropped significantly"
+          description: "Throughput dropped to {{ $value | humanizePercentage }} of previous levels"
+
+      # Load Balancer
+      - alert: LoadBalancerUnhealthy
+        expr: haproxy_server_check_status != 1
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Load balancer backend unhealthy"
+          description: "Backend {{ $labels.server }} in {{ $labels.backend }} is unhealthy"
+
+      - alert: HighLoadBalancerLatency
+        expr: haproxy_server_response_time_average_seconds > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High load balancer response time"
+          description: "Average response time is {{ $value }}s for {{ $labels.server }}" 

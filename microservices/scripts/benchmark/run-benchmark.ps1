@@ -251,13 +251,17 @@ $GraphsDir = Join-Path $ScriptDir "benchmark-graphs"
 if (-not (Test-Path $ResultsDir)) { New-Item -ItemType Directory -Path $ResultsDir -Force | Out-Null }
 if (-not (Test-Path $GraphsDir)) { New-Item -ItemType Directory -Path $GraphsDir -Force | Out-Null }
 
-# Build the benchmark binary
+# Build the benchmark binary from correct source
 Write-ColorOutput "`n🔨 Building benchmark binary..." -Color $Colors.Yellow
-$buildResult = go build -o avalanche-benchmark.exe avalanche-comparison-benchmark.go
+$AvancheRoot = (Get-Item (Join-Path $ScriptDir "../../../../")).FullName
+Push-Location $AvancheRoot
+$buildResult = go build -o "microservices/scripts/benchmark/benchmark-sim.exe" scripts/standalone/benchmark_sim.go
 if ($LASTEXITCODE -ne 0) {
     Write-ColorOutput "❌ Failed to build benchmark binary" -Color $Colors.Red
+    Pop-Location
     exit 1
 }
+Pop-Location
 
 # Start services with preserved scale
 Write-ColorOutput "`n📦 Managing Docker services..." -Color $Colors.Yellow
@@ -293,7 +297,7 @@ $env:DAG_STATE_WORKERS = $activeWorkers.DagState
 Write-ColorOutput "`n🏃‍♂️ Running parallel benchmark tests..." -Color $Colors.Yellow
 Write-ColorOutput "This may take several minutes. Please wait...`n" -Color $Colors.Blue
 
-$benchmarkResult = Start-Process -FilePath ".\avalanche-benchmark.exe" -Wait -NoNewWindow -PassThru
+$benchmarkResult = Start-Process -FilePath ".\benchmark-sim.exe" -Wait -NoNewWindow -PassThru
 
 if ($benchmarkResult.ExitCode -eq 0) {
     Write-ColorOutput "✅ Benchmark tests completed successfully!`n" -Color $Colors.Green

@@ -90,13 +90,13 @@ You can also run specific tests manually:
 
 ```bash
 # Run all tests
-go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain
+go test -v github.com/Final-Project-13520137/avalanche-parallel/pkg/blockchain
 
 # Run specific test category
-go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestTransaction
-go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestBlock
-go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestBlockchain
-go test -v github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain -run TestFull
+go test -v github.com/Final-Project-13520137/avalanche-parallel/pkg/blockchain -run TestTransaction
+go test -v github.com/Final-Project-13520137/avalanche-parallel/pkg/blockchain -run TestBlock
+go test -v github.com/Final-Project-13520137/avalanche-parallel/pkg/blockchain -run TestBlockchain
+go test -v github.com/Final-Project-13520137/avalanche-parallel/pkg/blockchain -run TestFull
 ```
 
 ### Running the Load Testing Tool

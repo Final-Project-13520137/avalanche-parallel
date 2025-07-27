@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/Final-Project-13520137/avalanche-parallel-dag/pkg/blockchain"
+	"github.com/Final-Project-13520137/avalanche-parallel/pkg/blockchain"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -23,35 +23,48 @@ func main() {
 	flag.Parse()
 
 	// Setup logger
-	logFactory := logging.NewFactory(logging.Config{
-		DisplayLevel: *logLevel,
-		LogLevel:     *logLevel,
-	})
-	log, err := logFactory.Make("blockchain")
+	var level zap.AtomicLevel
+	switch *logLevel {
+	case "debug":
+		level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	case "info":
+		level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	case "warn":
+		level = zap.NewAtomicLevelAt(zap.WarnLevel)
+	case "error":
+		level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	default:
+		level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	}
+
+	config := zap.NewProductionConfig()
+	config.Level = level
+	log, err := config.Build()
 	if err != nil {
 		fmt.Printf("Failed to create logger: %s\n", err)
 		os.Exit(1)
 	}
+	defer log.Sync()
 
 	// Create node config
-	config := blockchain.NodeConfig{
+	nodeConfig := blockchain.NodeConfig{
 		MaxParallelism: *parallelism,
 		APIPort:        *port,
 	}
 
 	// Create and start node
 	log.Info("Starting Avalanche Parallel Blockchain node...")
-	node, err := blockchain.NewNode(log, config)
+	node, err := blockchain.NewNode(log, nodeConfig)
 	if err != nil {
-		log.Fatal("Failed to create node: %s", err)
+		log.Fatal("Failed to create node", zap.Error(err))
 	}
 
 	if err := node.Start(); err != nil {
-		log.Fatal("Failed to start node: %s", err)
+		log.Fatal("Failed to start node", zap.Error(err))
 	}
 
 	log.Info("Node started successfully")
-	log.Info("API server running on port %d", *port)
+	log.Info("API server running on port", zap.Int("port", *port))
 	log.Info("Press Ctrl+C to stop")
 
 	// Wait for shutdown signal
@@ -61,10 +74,10 @@ func main() {
 
 	log.Info("Shutting down...")
 	if err := node.Stop(); err != nil {
-		log.Error("Error during shutdown: %s", err)
+		log.Error("Error during shutdown", zap.Error(err))
 	}
 
 	// Give time for cleanup
 	time.Sleep(1 * time.Second)
 	log.Info("Node stopped")
-} 
+}

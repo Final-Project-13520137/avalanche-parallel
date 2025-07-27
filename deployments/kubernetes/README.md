@@ -123,7 +123,7 @@ Auto-Scaling Configuration:
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/Final-Project-13520137/avalanche-parallel-dag.git
+git clone https://github.com/Final-Project-13520137/avalanche-parallel.git
 cd avalanche-parallel-dag/deployments/kubernetes
 ```
 

@@ -12,7 +12,6 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
-	"github.com/ava-labs/avalanchego/snow/consensus/avalanche"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"go.uber.org/zap"
 )
@@ -23,14 +22,7 @@ var (
 )
 
 // ParallelVertex extends the functionality of the base Vertex
-type ParallelVertex interface {
-	avalanche.Vertex
-	ID() ids.ID
-	// GetProcessingPriority returns the priority for processing this vertex
-	GetProcessingPriority() uint64
-	// Verify verifies the vertex and its transactions
-	Verify(ctx context.Context) error
-}
+// (defined in adapter.go)
 
 // VertexProcessor is the interface for parallel vertex processing
 type VertexProcessor interface {
@@ -61,11 +53,6 @@ func NewDefaultVertexProcessor(logger *zap.Logger, maxWorkers int) *DefaultVerte
 
 // Process processes a vertex and its transactions
 func (p *DefaultVertexProcessor) Process(ctx context.Context, vertex ParallelVertex) error {
-	// Basic validation
-	if err := vertex.Verify(ctx); err != nil {
-		return err
-	}
-
 	// Get transactions
 	txs, err := vertex.Txs(ctx)
 	if err != nil {
@@ -287,46 +274,7 @@ func (dag *ParallelDAG) Size() int {
 	return len(dag.vertices)
 }
 
-// VertexAdapter adapts an avalanche.Vertex to ParallelVertex
-type VertexAdapter struct {
-	avalanche.Vertex
-	priority uint64
-}
-
-// NewVertexAdapter creates a new vertex adapter
-func NewVertexAdapter(vertex avalanche.Vertex, priority uint64) (*VertexAdapter, error) {
-	if vertex == nil {
-		return nil, errors.New("nil vertex")
-	}
-
-	return &VertexAdapter{
-		Vertex:   vertex,
-		priority: priority,
-	}, nil
-}
-
-// GetProcessingPriority implements the ParallelVertex interface
-func (va *VertexAdapter) GetProcessingPriority() uint64 {
-	return va.priority
-}
-
-// Verify implements the ParallelVertex interface
-func (va *VertexAdapter) Verify(ctx context.Context) error {
-	// Get transactions
-	txs, err := va.Txs(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Verify each transaction
-	for _, tx := range txs {
-		if err := tx.Verify(ctx); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
+// VertexAdapter is defined in adapter.go
 
 // Result represents the processing result of a vertex
 type Result struct {

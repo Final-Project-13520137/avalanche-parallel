@@ -7,7 +7,7 @@ Panduan lengkap untuk menjalankan Avalanche Parallel di Linux, WSL, atau Ubuntu.
 ### 1. Clone dan Setup Permissions
 ```bash
 # Clone repository
-git clone https://github.com/Final-Project-13520137/avalanche-parallel-dag.git
+git clone https://github.com/Final-Project-13520137/avalanche-parallel.git
 cd avalanche-parallel-dag
 
 # Set permissions untuk semua script

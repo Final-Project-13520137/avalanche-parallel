@@ -1,4 +1,4 @@
-module github.com/Final-Project-13520137/avalanche-parallel-dag
+module github.com/Final-Project-13520137/avalanche-parallel
 
 go 1.18
 

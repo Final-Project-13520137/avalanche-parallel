@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -284,7 +287,7 @@ run_test_case() {
     export CONSENSUS_WORKERS="$actual_consensus"
     export DAG_STATE_WORKERS="$actual_dag_state"
 
-    ./avalanche-benchmark &
+    ./benchmark-sim &
     BENCHMARK_PID=$!
 
     # Show progress while benchmark is running
@@ -325,14 +328,18 @@ echo -e "\n${YELLOW}Installing Python dependencies...${NC}"
 python3 -m pip install pandas matplotlib seaborn &
 show_spinner $! "Installing Python packages"
 
-# Build the benchmark binary
+# Build the benchmark binary from correct source
 echo -e "\n${YELLOW}Building benchmark binary...${NC}"
-go build -o avalanche-benchmark avalanche-comparison-benchmark.go &
+# Get the avalanche project root (3 levels up from current script)
+AVALANCHE_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+cd "${AVALANCHE_ROOT}"
+go build -o "microservices/scripts/benchmark/benchmark-sim" scripts/standalone/benchmark_sim.go &
 show_spinner $! "Building benchmark binary"
 if [ $? -ne 0 ]; then
     echo -e "\n${RED}Failed to build benchmark binary${NC}"
     exit 1
 fi
+cd "${SCRIPT_DIR}"
 
 # Start required services with preserved scale
 echo -e "\n${YELLOW}Managing Docker services...${NC}"
@@ -444,31 +451,69 @@ echo -e "${BLUE}Total test combinations: 4 scenarios × 3 worker configs = 12 te
 export TEST_CASE="worker_variations"
 export ENABLE_WORKER_VARIATIONS=true
 
-./avalanche-benchmark &
+./benchmark-sim &
 BENCHMARK_PID=$!
 
 # Enhanced progress tracking for worker variations
 test_count=0
 total_tests=12  # 4 scenarios × 3 worker configs
+spinner_idx=0
+
+# Get initial results count
+initial_results=0
+if [ -d "$RESULTS_DIR" ]; then
+    initial_results=$(find "$RESULTS_DIR" -name "benchmark_results_*.json" 2>/dev/null | wc -l)
+fi
 
 while kill -0 $BENCHMARK_PID 2>/dev/null; do
-    for i in $(seq 0 ${#SPINNER}); do
-        test_progress=$((test_count * 100 / total_tests))
-        printf "\r${BLUE}${SPINNER:$i:1}${NC} Running worker variation tests... [${test_progress}%%] (${test_count}/${total_tests})"
-        sleep 0.2
-    done
+    # Update test count based on actual results generated
+    if [ -d "$RESULTS_DIR" ]; then
+        current_results=$(find "$RESULTS_DIR" -name "benchmark_results_*.json" 2>/dev/null | wc -l)
+        test_count=$((current_results - initial_results))
+        
+        # Cap test_count at total_tests to prevent exceeding 100%
+        if [ $test_count -gt $total_tests ]; then
+            test_count=$total_tests
+        fi
+    fi
+    
+    # Animate spinner and show progress
+    spinner_idx=$(( (spinner_idx + 1) % ${#SPINNER} ))
+    test_progress=$((test_count * 100 / total_tests))
+    
+    # Show different messages based on progress
+    if [ $test_count -eq 0 ]; then
+        progress_msg="Initializing tests..."
+    elif [ $test_count -eq $total_tests ]; then
+        progress_msg="Finalizing results..."
+    else
+        progress_msg="Running worker variation tests..."
+    fi
+    
+    printf "\r${BLUE}${SPINNER:$spinner_idx:1}${NC} ${progress_msg} [${test_progress}%%] (${test_count}/${total_tests})"
+    sleep 0.5
 done
 
 if wait $BENCHMARK_PID; then
-    echo -e "\r✓ All worker variation tests completed successfully!\n"
+    # Get final count for accurate display
+    if [ -d "$RESULTS_DIR" ]; then
+        final_results=$(find "$RESULTS_DIR" -name "benchmark_results_*.json" 2>/dev/null | wc -l)
+        final_test_count=$((final_results - initial_results))
+    else
+        final_test_count=$test_count
+    fi
+    
+    echo -e "\r✓ All worker variation tests completed successfully! (${final_test_count}/${total_tests} tests)\n"
     
     # Display summary of worker configurations tested
     echo -e "${GREEN}📊 Worker Variation Test Summary:${NC}"
     
     # Count the actual results
     if [ -d "$RESULTS_DIR" ]; then
-        result_count=$(find "$RESULTS_DIR" -name "benchmark_results_*.json" -newer . 2>/dev/null | wc -l)
-        echo -e "${BLUE}Results generated: ${result_count} benchmark files${NC}"
+        result_count=$(find "$RESULTS_DIR" -name "benchmark_results_*.json" 2>/dev/null | wc -l)
+        new_results=$((result_count - initial_results))
+        echo -e "${BLUE}New results generated: ${new_results} benchmark files${NC}"
+        echo -e "${BLUE}Total results in directory: ${result_count} benchmark files${NC}"
         
         # Show the latest results file
         latest_result=$(find "$RESULTS_DIR" -name "benchmark_results_*.json" -print0 | xargs -0 ls -t | head -1)
