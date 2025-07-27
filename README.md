@@ -6,6 +6,55 @@ Implementasi **Avalanche blockchain** dengan arsitektur **microservices worker p
 
 Proyek ini mengubah arsitektur monolith Avalanche menjadi **true microservices** dengan worker pools yang dapat memproses transaksi secara **parallel** dan **scale horizontal** berdasarkan load.
 
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Go 1.19+
+- Docker & Docker Compose
+- kubectl (Kubernetes CLI)
+
+### Quick Setup
+
+#### 1. Clone Repository
+```bash
+git clone https://github.com/Final-Project-13520137/avalanche-parallel.git
+cd avalanche-parallel
+```
+
+#### 2. Install kubectl
+The repository does not include kubectl binary to keep the repository size small. Download it using:
+
+**Linux/macOS:**
+```bash
+chmod +x scripts/install-kubectl.sh
+./scripts/install-kubectl.sh
+```
+
+**Windows PowerShell:**
+```powershell
+.\scripts\install-kubectl.ps1
+```
+
+**Manual Installation:**
+You can also download kubectl manually from: https://kubernetes.io/docs/tasks/tools/
+
+#### 3. Build and Run
+```bash
+# Build the project
+go build -o avalanche-parallel cmd/blockchain/main.go
+
+# Start microservices
+cd microservices
+docker-compose -f docker-compose.worker-pools.yml up -d
+
+# Run benchmark
+cd scripts/benchmark
+./run-benchmark.sh
+```
+
+### Architecture Overview
+
 ### Arsitektur Monolith (Original)
 
 ```

@@ -1,0 +1,66 @@
+# Binaries
+*.exe
+*.bin
+avalanche-parallel
+worker
+kubectl
+kubectl.exe
+
+# Build artifacts
+/bin/
+/build/
+/dist/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+/logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Go build cache
+go.sum.backup
+go.mod.backup
+go.mod.bak
+
+# Docker files
+docker-compose.override.yml
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Benchmark results
+benchmark-results/
+benchmark-graphs/
+*.png
+*.json
+benchmark_results_*.json
+
+# Large files that should not be in git
+kubectl
+kubectl.exe
+*.deb
+*.rpm
+*.tar.gz
+*.zip 
