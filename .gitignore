@@ -36,6 +36,7 @@ Thumbs.db
 *.temp
 *.bak
 *.backup
+.cache
 
 # Go build cache
 go.sum.backup

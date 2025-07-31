@@ -288,9 +288,5 @@ volumes:
 
 networks:
   avalanche-net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.25.0.0/16
-    attachable: true
+    external: true
     name: avalanche-net-pool 

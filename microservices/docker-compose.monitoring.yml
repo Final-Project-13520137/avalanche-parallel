@@ -266,4 +266,4 @@ networks:
           gateway: 172.30.0.1
   worker-network:
     external: true
-    name: avalanche-worker-network 
+    name: avalanche-net-pool 

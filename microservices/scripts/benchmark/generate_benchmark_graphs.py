@@ -8,7 +8,18 @@ from datetime import datetime
 
 def setup_style():
     """Set up the plotting style."""
-    plt.style.use('seaborn')
+    # Use seaborn-v0_8 style which is compatible with newer matplotlib versions
+    try:
+        plt.style.use('seaborn-v0_8')
+    except OSError:
+        # Fallback to default style if seaborn style not available
+        plt.style.use('default')
+        # Manually set seaborn-like appearance
+        plt.rcParams['axes.grid'] = True
+        plt.rcParams['grid.alpha'] = 0.3
+        plt.rcParams['axes.edgecolor'] = 'gray'
+        plt.rcParams['axes.linewidth'] = 0.8
+        
     sns.set_palette("husl")
     plt.rcParams['figure.figsize'] = [12, 6]
     plt.rcParams['figure.dpi'] = 100
