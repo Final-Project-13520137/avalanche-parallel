@@ -1,0 +1,35 @@
+{
+  "test_type": "avalanchego_flow_system",
+  "timestamp": "2025-07-27T13:31:21Z",
+  "configuration": {
+    "workers": 3,
+    "duration": 60,
+    "log_level": "info"
+  },
+  "tests": {
+    "api_server_validation": {
+      "status": "failed",
+      "error": "validation_failed"
+    },
+    "mempool_queue": {
+      "status": "failed",
+      "error": "queue_overflow"
+    },
+    "consensus_engine": {
+      "status": "failed",
+      "error": "vertex_building_failed"
+    },
+    "snowman_consensus": {
+      "status": "failed",
+      "error": "voting_failed"
+    },
+    "state_manager": {
+      "status": "failed",
+      "error": "state_update_failed"
+    },
+    "end_to_end_flow": {
+      "status": "failed",
+      "error": "flow_interrupted"
+    }
+  }
+}

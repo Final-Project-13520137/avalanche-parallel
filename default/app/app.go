@@ -44,6 +44,9 @@ type App interface {
 	// ExitCode should only be called after [Start] returns with no error. It
 	// should block until the application finishes
 	ExitCode() (int, error)
+
+	// GetFlowManager returns the flow manager interface
+	GetFlowManager() FlowManager
 }
 
 func New(config nodeconfig.Config) (App, error) {
@@ -80,10 +83,14 @@ func New(config nodeconfig.Config) (App, error) {
 		return nil, fmt.Errorf("failed to initialize node: %w", err)
 	}
 
+	// Initialize AvalancheGo monolithic flow manager
+	flowManager := NewAvalancheMonolithicFlow(log)
+
 	return &app{
-		node:       n,
-		log:        log,
-		logFactory: logFactory,
+		node:        n,
+		log:         log,
+		logFactory:  logFactory,
+		flowManager: flowManager,
 	}, nil
 }
 
@@ -143,18 +150,31 @@ type app struct {
 	log        logging.Logger
 	logFactory logging.Factory
 	exitWG     sync.WaitGroup
+
+	// AvalancheGo monolithic flow manager untuk testing dan integrasi
+	flowManager *AvalancheMonolithicFlow
 }
 
 // Start the business logic of the node (as opposed to config reading, etc).
 // Does not block until the node is done. Errors returned from this method
 // are not logged.
 func (a *app) Start() error {
+	// Initialize AvalancheGo monolithic flow system
+	if err := a.flowManager.Initialize(); err != nil {
+		a.log.Error("failed to initialize flow manager", zap.Error(err))
+		return fmt.Errorf("failed to initialize flow manager: %w", err)
+	}
+
 	// [p.ExitCode] will block until [p.exitWG.Done] is called
 	a.exitWG.Add(1)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				fmt.Println("caught panic", r)
+			}
+			// Shutdown flow manager gracefully
+			if shutdownErr := a.flowManager.Shutdown(); shutdownErr != nil {
+				a.log.Error("failed to shutdown flow manager", zap.Error(shutdownErr))
 			}
 			a.log.Stop()
 			a.logFactory.Close()
@@ -187,4 +207,9 @@ func (a *app) Stop() error {
 func (a *app) ExitCode() (int, error) {
 	a.exitWG.Wait()
 	return a.node.ExitCode(), nil
+}
+
+// GetFlowManager returns the flow manager interface
+func (a *app) GetFlowManager() FlowManager {
+	return a.flowManager
 }

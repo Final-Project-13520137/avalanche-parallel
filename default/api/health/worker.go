@@ -149,10 +149,10 @@ func (w *worker) Results(tags ...string) (map[string]Result, bool) {
 		tags = allTags
 	}
 
-	names := set.Set[string]{}
+	names := set.Empty[string]()
 	tagSet := set.Of(tags...)
 	tagSet.Add(ApplicationTag) // we always want to include the application tag
-	for tag := range tagSet {
+	for _, tag := range tagSet.List() {
 		if set, ok := w.tags[tag]; ok {
 			names.Union(set)
 		}
@@ -160,7 +160,7 @@ func (w *worker) Results(tags ...string) (map[string]Result, bool) {
 
 	results := make(map[string]Result, names.Len())
 	healthy := true
-	for name := range names {
+	for _, name := range names.List() {
 		if result, ok := w.results[name]; ok {
 			results[name] = result
 			healthy = healthy && result.Error == nil
