@@ -1,0 +1,8 @@
+[
+  {
+    "Workers": 2,
+    "Load": 1000,
+    "AvgCPU": 12,
+    "AvgMemBytes": 212
+  }
+]
