@@ -1,41 +1,5 @@
-FROM golang:1.22-alpine AS builder
-
-# Install build dependencies
-RUN apk add --no-cache git ca-certificates
-
-# Set working directory
-WORKDIR /app
-
-# Copy go mod files
-COPY go.mod go.sum ./
-
-# Download dependencies
-RUN go mod download && \
-    go get -u github.com/go-redis/redis/v8@v8.11.5 && \
-    go get -u github.com/prometheus/client_golang@v1.16.0 && \
-    go get -u github.com/golang/protobuf/proto@v1.5.3 && \
-    go get -u google.golang.org/protobuf@v1.30.0 && \
-    go get -u golang.org/x/sys@v0.8.0 && \
-    go mod tidy
-
-# Copy source code
-COPY . .
-
-# Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o consensus-worker cmd/main.go
-
-# Create final image
 FROM alpine:latest
-
-# Copy binary from builder
-COPY --from=builder /app/consensus-worker .
-
-# Expose metrics port
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
-
-# Run
-CMD ["./consensus-worker"]
+WORKDIR /root/
+COPY ../../Dockerfile.workers /tmp/Dockerfile.workers
+# placeholder: image will be built using multi-stage in Dockerfile.workers via docker-compose build
+CMD ["/bin/sh","-c","echo consensus-worker image built via root Dockerfile.workers && sleep infinity"]

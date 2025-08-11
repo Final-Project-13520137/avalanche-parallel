@@ -1,3 +1,6 @@
+//go:build viz
+// +build viz
+
 // Copyright (C) 2024, Avalanche Parallel Project. All rights reserved.
 // See the file LICENSE for licensing terms.
 

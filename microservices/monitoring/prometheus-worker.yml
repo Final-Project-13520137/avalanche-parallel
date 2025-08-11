@@ -12,36 +12,26 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # Consensus Workers
+  # Consensus Workers (service-level scrape)
   - job_name: 'consensus-workers'
     static_configs:
-      - targets: 
-          - 'consensus-worker-1:8080'
-          - 'consensus-worker-2:8080'
-          - 'consensus-worker-3:8080'
+      - targets: ['consensus-worker:8080']
     metrics_path: /metrics
     scrape_interval: 30s
     scrape_timeout: 10s
 
-  # Validator Workers  
+  # Validator Workers (service-level scrape) 
   - job_name: 'validator-workers'
     static_configs:
-      - targets:
-          - 'validator-worker-1:8081'
-          - 'validator-worker-2:8081'
-          - 'validator-worker-3:8081'
-          - 'validator-worker-4:8081'
-          - 'validator-worker-5:8081'
+      - targets: ['validator-worker:8081']
     metrics_path: /metrics
     scrape_interval: 15s
     scrape_timeout: 5s
 
-  # DAG+State Workers
+  # DAG+State Workers (service-level scrape)
   - job_name: 'dag-state-workers'
     static_configs:
-      - targets:
-          - 'dag-state-worker-1:8082'
-          - 'dag-state-worker-2:8082'
+      - targets: ['dag-state-worker:8082']
     metrics_path: /metrics
     scrape_interval: 45s
     scrape_timeout: 15s
@@ -66,6 +56,20 @@ scrape_configs:
       - targets: ['postgres:5432']
     metrics_path: /metrics
     scrape_interval: 60s
+
+  # cAdvisor (container CPU/Memory)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  # Worker Monitor aggregator (queue depth, processing time)
+  - job_name: 'worker-monitor'
+    static_configs:
+      - targets: ['worker-monitor:8080']
+    metrics_path: /metrics
+    scrape_interval: 15s
 
   # HAProxy Load Balancers
   - job_name: 'load-balancers'

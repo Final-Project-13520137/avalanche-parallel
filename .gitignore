@@ -52,11 +52,11 @@ docker-compose.override.yml
 .env.production
 
 # Benchmark results
-benchmark-results/
-benchmark-graphs/
-*.png
-*.json
-benchmark_results_*.json
+# benchmark-results/
+# benchmark-graphs/
+# *.png
+# *.json
+# benchmark_results_*.json
 
 # Large files that should not be in git
 kubectl

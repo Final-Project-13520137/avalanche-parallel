@@ -1,0 +1,146 @@
+[
+  {
+    "Workers": 2,
+    "Load": 1000,
+    "AvgCPU": 165871.9,
+    "AvgMemBytes": 435.4
+  },
+  {
+    "Workers": 2,
+    "Load": 5000,
+    "AvgCPU": 166579.3,
+    "AvgMemBytes": 481.1
+  },
+  {
+    "Workers": 2,
+    "Load": 10000,
+    "AvgCPU": 167680,
+    "AvgMemBytes": 500
+  },
+  {
+    "Workers": 2,
+    "Load": 20000,
+    "AvgCPU": 170117.3,
+    "AvgMemBytes": 518.8
+  },
+  {
+    "Workers": 4,
+    "Load": 1000,
+    "AvgCPU": 170226.4,
+    "AvgMemBytes": 531.9
+  },
+  {
+    "Workers": 4,
+    "Load": 5000,
+    "AvgCPU": 170703.9,
+    "AvgMemBytes": 594.2
+  },
+  {
+    "Workers": 4,
+    "Load": 10000,
+    "AvgCPU": 171708.2,
+    "AvgMemBytes": 621.6
+  },
+  {
+    "Workers": 4,
+    "Load": 20000,
+    "AvgCPU": 173620,
+    "AvgMemBytes": 648.7
+  },
+  {
+    "Workers": 8,
+    "Load": 1000,
+    "AvgCPU": 173741,
+    "AvgMemBytes": 727
+  },
+  {
+    "Workers": 8,
+    "Load": 5000,
+    "AvgCPU": 174238.1,
+    "AvgMemBytes": 823.1
+  },
+  {
+    "Workers": 8,
+    "Load": 10000,
+    "AvgCPU": 175246.6,
+    "AvgMemBytes": 863.8
+  },
+  {
+    "Workers": 8,
+    "Load": 20000,
+    "AvgCPU": 177164.2,
+    "AvgMemBytes": 904.6
+  },
+  {
+    "Workers": 16,
+    "Load": 1000,
+    "AvgCPU": 177385.3,
+    "AvgMemBytes": 1114.8
+  },
+  {
+    "Workers": 16,
+    "Load": 5000,
+    "AvgCPU": 177848.7,
+    "AvgMemBytes": 1277.6
+  },
+  {
+    "Workers": 16,
+    "Load": 10000,
+    "AvgCPU": 179257.3,
+    "AvgMemBytes": 1352
+  },
+  {
+    "Workers": 16,
+    "Load": 20000,
+    "AvgCPU": 181645.2,
+    "AvgMemBytes": 1420.6
+  },
+  {
+    "Workers": 32,
+    "Load": 1000,
+    "AvgCPU": 182326.4,
+    "AvgMemBytes": 1891.7
+  },
+  {
+    "Workers": 32,
+    "Load": 5000,
+    "AvgCPU": 183183.8,
+    "AvgMemBytes": 2188.8
+  },
+  {
+    "Workers": 32,
+    "Load": 10000,
+    "AvgCPU": 184593.7,
+    "AvgMemBytes": 2317.4
+  },
+  {
+    "Workers": 32,
+    "Load": 20000,
+    "AvgCPU": 187342.2,
+    "AvgMemBytes": 2444.7
+  },
+  {
+    "Workers": 48,
+    "Load": 1000,
+    "AvgCPU": 187769.1,
+    "AvgMemBytes": 2661
+  },
+  {
+    "Workers": 48,
+    "Load": 5000,
+    "AvgCPU": 188716.4,
+    "AvgMemBytes": 3091.1
+  },
+  {
+    "Workers": 48,
+    "Load": 10000,
+    "AvgCPU": 190468,
+    "AvgMemBytes": 3276.7
+  },
+  {
+    "Workers": 48,
+    "Load": 20000,
+    "AvgCPU": 193520.4,
+    "AvgMemBytes": 3460.5
+  }
+]

@@ -160,29 +160,75 @@ func (w *Worker) processTask(ctx context.Context, taskData []byte) {
 		return
 	}
 
-	// Process task (implement your consensus logic here)
-	time.Sleep(100 * time.Millisecond) // Simulate processing
+	// Parameter konsensus
+	params, _ := task["consensus_params"].(map[string]interface{})
+	k := getInt(params, "k", 5)
+	betaVirt := getInt(params, "beta_virtuous", 5)
+	betaRogue := getInt(params, "beta_rogue", 10)
+	maxRounds := getInt(params, "max_rounds", 10)
 
-	// Send result
+	// Snowball sederhana: preferensi awal ditentukan oleh hash id
+	pref := 0
+	confidence := 0
+
+	rngSeed := time.Now().UnixNano()
+	_ = rngSeed
+
+	accepted := false
+	for round := 0; round < maxRounds; round++ {
+		// sampling k validator virtual
+		positive := 0
+		for i := 0; i < k; i++ {
+			// simulasi polling: 85% menerima jika pref==1, 60% jika pref==0
+			p := time.Now().UnixNano() + int64(i)
+			if (pref == 1 && (p%100) < 85) || (pref == 0 && (p%100) < 60) {
+				positive++
+			}
+		}
+
+		// update preference berdasar alpha=0.8 (>=80% setuju)
+		if float64(positive)/float64(k) >= 0.8 {
+			confidence++
+			pref = 1
+		} else {
+			confidence = 0
+			pref = 0
+		}
+
+		if pref == 1 && confidence >= betaVirt {
+			accepted = true
+			break
+		}
+		if pref == 0 && confidence >= betaRogue {
+			accepted = false
+			break
+		}
+	}
+
+	// Kirim hasil
 	result := map[string]interface{}{
-		"worker_id":  w.id,
-		"task_id":    task["id"],
-		"status":     "completed",
-		"timestamp":  time.Now(),
-		"processed":  true,
-		"vertex_id":  task["vertex_id"],
-		"parent_ids": task["parent_ids"],
+		"worker_id": w.id,
+		"task_id":   task["id"],
+		"accepted":  accepted,
+		"timestamp": time.Now(),
 	}
-
-	resultData, err := json.Marshal(result)
-	if err != nil {
-		log.Printf("Error marshaling result: %v", err)
-		return
-	}
-
+	resultData, _ := json.Marshal(result)
 	if err := w.redisClient.LPush(ctx, w.resultQueue, resultData).Err(); err != nil {
 		log.Printf("Error sending result: %v", err)
 	}
+}
+
+func getInt(m map[string]interface{}, key string, def int) int {
+	if m == nil { return def }
+	if v, ok := m[key]; ok {
+		switch t := v.(type) {
+		case float64:
+			return int(t)
+		case int:
+			return t
+		}
+	}
+	return def
 }
 
 // monitorQueueLength monitors the task queue length

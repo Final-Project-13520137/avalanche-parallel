@@ -1,0 +1,9 @@
+[
+  {
+    "Workers": 2,
+    "Load": 1000,
+    "ParallelSec": 14,
+    "MonolithicSec": 0,
+    "Speedup": 0
+  }
+]

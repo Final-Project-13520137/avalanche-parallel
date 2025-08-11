@@ -74,11 +74,31 @@ services:
       - postgres
     restart: unless-stopped
 
-  # Consensus Workers Pool
+  # Main Coordinator (Queue Balancer + Orchestrator)
+  main-coordinator:
+    build:
+      context: .
+      dockerfile: Dockerfile.workers
+      target: coordinator
+    container_name: main-coordinator
+    environment:
+      REDIS_URL: redis://redis:6379
+      SUBMISSION_QUEUE: gateway_submissions
+      RESULT_PREFIX: "submission_results:"
+    networks:
+      avalanche-net:
+        aliases:
+          - coordinator
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # Consensus Workers Pool (built from multi-stage Dockerfile)
   consensus-worker:
     build:
-      context: ./workers/consensus-worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.workers
+      target: consensus-worker
     image: avalanche-consensus-worker
     deploy:
       replicas: 4  # Scale between 2-10 workers
@@ -95,6 +115,8 @@ services:
       - MAX_WORKERS=4
       - LOG_LEVEL=info
       - METRICS_PORT=8080
+      - TASK_QUEUE=consensus_tasks_medium
+      - RESULT_QUEUE=consensus_results
     networks:
       avalanche-net:
         aliases:
@@ -103,11 +125,12 @@ services:
       - redis
     restart: unless-stopped
 
-  # Validator Workers Pool
+  # Validator Workers Pool (built from multi-stage Dockerfile)
   validator-worker:
     build:
-      context: ./workers/validator-worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.workers
+      target: validator-worker
     image: avalanche-validator-worker
     deploy:
       replicas: 6  # Scale between 3-15 workers
@@ -124,6 +147,8 @@ services:
       - MAX_WORKERS=4
       - LOG_LEVEL=info
       - METRICS_PORT=8081
+      - TASK_QUEUE=validation_tasks_medium
+      - RESULT_QUEUE=validation_results
     networks:
       avalanche-net:
         aliases:
@@ -132,11 +157,12 @@ services:
       - redis
     restart: unless-stopped
 
-  # DAG State Workers Pool
+  # DAG State Workers Pool (built from multi-stage Dockerfile)
   dag-state-worker:
     build:
-      context: ./workers/dag-state-worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.workers
+      target: dag-state-worker
     image: avalanche-dag-state-worker
     deploy:
       replicas: 3  # Scale between 2-8 workers
@@ -154,6 +180,8 @@ services:
       - MAX_WORKERS=4
       - LOG_LEVEL=info
       - METRICS_PORT=8082
+      - TASK_QUEUE=dag_tasks_medium
+      - RESULT_QUEUE=dag_state_results
     networks:
       avalanche-net:
         aliases:
@@ -244,6 +272,26 @@ services:
       avalanche-net:
         aliases:
           - grafana
+    restart: unless-stopped
+
+  # cAdvisor for container-level CPU/Memory metrics (Prometheus target)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: cadvisor
+    command:
+      - --housekeeping_interval=10s
+      - --enable_metrics=cpu,memory,network,process
+    ports:
+      - "8084:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      avalanche-net:
+        aliases:
+          - cadvisor
     restart: unless-stopped
 
   alertmanager:

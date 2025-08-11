@@ -2,6 +2,89 @@
 
 Implementasi microservices untuk sistem Avalanche blockchain dengan arsitektur worker pools yang mendukung pemrosesan paralel dan auto-scaling.
 
+## 🚀 Quick Start (Docker Compose Worker Pools)
+
+Langkah paling cepat dan akurat untuk menjalankan seluruh stack sesuai konfigurasi `docker-compose.worker-pools.yml`:
+
+1) Buat network eksternal yang dibutuhkan compose
+
+```bash
+# Windows PowerShell
+docker network create avalanche-net-pool 2>$null
+
+# Linux/macOS
+docker network create avalanche-net-pool 2>/dev/null || true
+```
+
+2) Build seluruh image layanan
+
+```bash
+cd microservices
+docker compose -f docker-compose.worker-pools.yml build
+```
+
+3) Jalankan seluruh layanan (infrastruktur, gateway, coordinator, worker pools, HAProxy, monitoring)
+
+```bash
+docker compose -f docker-compose.worker-pools.yml up -d
+```
+
+4) Verifikasi status container
+
+```bash
+docker compose -f docker-compose.worker-pools.yml ps
+```
+
+Pastikan status menunjukkan Up/healthy untuk:
+- redis, postgres, api-gateway, main-coordinator
+- consensus-worker (beberapa replika)
+- validator-worker (beberapa replika)
+- dag-state-worker (beberapa replika)
+- haproxy (consensus/validator/dag-state)
+- prometheus, grafana, alertmanager
+
+5) Health check cepat
+
+```bash
+# API Gateway health
+curl http://localhost:9750/health
+
+# Prometheus, Grafana, cAdvisor
+curl -sSf http://localhost:9090 >/dev/null && echo Prometheus OK
+curl -sSf http://localhost:3000 >/dev/null && echo Grafana OK
+curl -sSf http://localhost:8084 >/dev/null && echo cAdvisor OK
+```
+
+6) Submit 1 transaksi uji melalui API Gateway
+
+```bash
+# Windows PowerShell
+iwr -UseBasicParsing -Method Post http://localhost:9750/api/v1/tx/submit `
+  -ContentType 'application/json' `
+  -Body '{"from":"A","to":"B","amount":100,"priority":"high","data":"Zm9v"}'
+
+# Linux/macOS
+curl -X POST http://localhost:9750/api/v1/tx/submit \
+  -H 'Content-Type: application/json' \
+  -d '{"from":"A","to":"B","amount":100,"priority":"high","data":"Zm9v"}'
+```
+
+Jika respons 200/202 diterima, pipeline (Validation → Consensus → DAG/State) berjalan.
+
+7) Logs cepat bila perlu
+
+```bash
+docker compose -f docker-compose.worker-pools.yml logs -f main-coordinator
+# atau salah satu worker
+docker compose -f docker-compose.worker-pools.yml logs -f validator-worker
+```
+
+Catatan penting:
+- Compose menggunakan network eksternal bernama `avalanche-net-pool`. Pastikan dibuat sebelum `up`.
+- Healthcheck untuk worker telah selaras dengan port HTTP internal (validator/consensus: 8080; dag-state: 8082).
+
+---
+
 ## 📑 Daftar Isi
 - [Gambaran Umum](#-gambaran-umum)
 - [Arsitektur Sistem](#-arsitektur-sistem)
@@ -895,6 +978,74 @@ spec:
 ```
 
 ## 📊 Monitoring
+
+### Langkah demi langkah melihat monitoring (Prometheus & Grafana)
+
+1) Pastikan seluruh layanan jalan
+
+```bash
+docker compose -f microservices/docker-compose.worker-pools.yml up -d
+docker compose -f microservices/docker-compose.worker-pools.yml ps
+```
+
+2) Buka Prometheus untuk verifikasi target
+
+- Buka `http://localhost:9090`
+- Klik menu Status → Targets, pastikan status Up untuk:
+  - `consensus-workers`, `validator-workers`, `dag-state-workers`
+  - `api-gateway`, `worker-monitor`, `cadvisor`
+
+3) Coba query metrik di Prometheus (Examples)
+
+- CPU rata-rata per container (approx %):
+  - `sum by (name) (rate(container_cpu_usage_seconds_total[1m])) * 100`
+- Memory per container (MB):
+  - `sum by (name) (container_memory_working_set_bytes) / 1024 / 1024`
+- Kedalaman antrean per worker queue:
+  - `worker_queue_depth{queue_name=~"validation_.*|consensus_.*|dag_.*"}`
+- P95 waktu proses per jenis worker (histogram dari worker-monitor):
+  - `histogram_quantile(0.95, sum(rate(worker_processing_time_seconds_bucket[5m])) by (le, worker_type))`
+
+4) Buka Grafana dan hubungkan ke Prometheus
+
+- Buka `http://localhost:3000` (username/password default: `admin/admin`)
+- Menu Connections → Data sources → Add data source → Prometheus
+- URL: `http://prometheus:9090` (atau `http://localhost:9090` jika ingin via host)
+- Save & test (harus `Data source is working`)
+
+5) Import dashboard siap pakai
+
+- Menu Dashboards → New → Import
+- Upload file `microservices/monitoring/dashboards/worker-pools-dashboard.json`
+- Klik Load → Pilih data source Prometheus yang baru dibuat → Import
+
+6) Tambah panel ad‑hoc untuk CPU & Memori (opsional)
+
+- Panel CPU (%) per container:
+  - Query: `sum by (name) (rate(container_cpu_usage_seconds_total[1m])) * 100`
+  - Unit: Percent (0-100)
+- Panel Memory (MB) per container:
+  - Query: `sum by (name) (container_memory_working_set_bytes) / 1024 / 1024`
+  - Unit: Megabytes (SI)
+- Panel P95 processing time per worker_type:
+  - Query: `histogram_quantile(0.95, sum(rate(worker_processing_time_seconds_bucket[5m])) by (le, worker_type))`
+  - Unit: Seconds
+
+7) Korelasikan dengan benchmark
+
+- Jalankan benchmark:
+  - PowerShell: `./microservices/scripts/benchmark/run-parallel-vs-monolithic.ps1`
+  - Bash: `./microservices/scripts/benchmark/run-parallel-vs-monolithic.sh`
+- Ubah time range Grafana ke `Last 15 minutes` atau `Last 1 hour` ketika tes berjalan
+- Lihat spike CPU/Mem pada panel cAdvisor, dan latensi pada panel worker-monitor
+
+8) Hasil file untuk laporan (sesuai slide antarmuka)
+
+- JSON & Markdown hasil benchmark utama + CPU/Mem tersimpan di:
+  - `microservices/scripts/benchmark/benchmark-results/parallel-vs-monolithic_*.{json,md,csv}`
+  - `microservices/scripts/benchmark/benchmark-results/cluster-cpu-mem_*.{json,md}`
+- Grafik speedup:
+  - `microservices/scripts/benchmark/benchmark-graphs/speedup_workers_*.png`
 
 ### Dashboard Access
 

@@ -1,6 +1,6 @@
 module github.com/Final-Project-13520137/avalanche-parallel/microservices/workers/validator-worker
 
-go 1.22
+go 1.21
 
 require (
 	github.com/ava-labs/avalanchego v1.10.15
@@ -20,7 +20,5 @@ require (
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/Final-Project-13520137/avalanche-parallel => ../../../
 
 replace github.com/ava-labs/avalanchego => github.com/ava-labs/avalanchego v1.10.15

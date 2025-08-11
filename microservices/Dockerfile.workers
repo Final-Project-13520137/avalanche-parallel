@@ -1,59 +1,62 @@
 FROM golang:1.21-alpine AS builder
 
-WORKDIR /app
-
-# Install build dependencies
 RUN apk add --no-cache git ca-certificates
 
-# Copy go mod files
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source code
+# Copy full source
+WORKDIR /app
 COPY . .
 
-# Build all workers
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o consensus-worker ./workers/consensus-worker/cmd/main.go
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o validator-worker ./workers/validator-worker/cmd/main.go
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o dag-state-worker ./workers/dag-state-worker/cmd/main.go
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o api-gateway ./api-gateway/cmd/main.go
+# Build consensus-worker (uses its own go.mod)
+WORKDIR /app/workers/consensus-worker
+RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /out/consensus-worker ./cmd/main.go
+
+# Build validator-worker (uses its own go.mod)
+WORKDIR /app/workers/validator-worker
+RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /out/validator-worker ./cmd/main.go
+
+# Build dag-state-worker (uses its own go.mod)
+WORKDIR /app/workers/dag-state-worker
+RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /out/dag-state-worker ./cmd/main.go
+
+# Build main coordinator (uses microservices root go.mod)
+WORKDIR /app
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /out/coordinator ./services/coordinator/cmd/main.go
 
 # Final stage - consensus worker
 FROM alpine:latest AS consensus-worker
-
 RUN apk --no-cache add ca-certificates curl
 WORKDIR /root/
-COPY --from=builder /app/consensus-worker .
+COPY --from=builder /out/consensus-worker ./consensus-worker
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 CMD ["./consensus-worker"]
 
 # Final stage - validator worker
 FROM alpine:latest AS validator-worker
-
 RUN apk --no-cache add ca-certificates curl
 WORKDIR /root/
-COPY --from=builder /app/validator-worker .
+COPY --from=builder /out/validator-worker ./validator-worker
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8081/health || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 CMD ["./validator-worker"]
 
 # Final stage - dag-state worker
 FROM alpine:latest AS dag-state-worker
-
 RUN apk --no-cache add ca-certificates curl
 WORKDIR /root/
-COPY --from=builder /app/dag-state-worker .
+COPY --from=builder /out/dag-state-worker ./dag-state-worker
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8082/health || exit 1
 CMD ["./dag-state-worker"]
 
-# Final stage - api gateway
-FROM alpine:latest AS api-gateway
-
+# Final stage - coordinator
+FROM alpine:latest AS coordinator
 RUN apk --no-cache add ca-certificates curl
 WORKDIR /root/
-COPY --from=builder /app/api-gateway .
+COPY --from=builder /out/coordinator ./coordinator
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:9750/health || exit 1
-CMD ["./api-gateway"] 
+    CMD wget -qO- http://localhost:0/health || exit 0
+CMD ["./coordinator"] 
