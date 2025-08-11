@@ -979,73 +979,87 @@ spec:
 
 ## 📊 Monitoring
 
-### Langkah demi langkah melihat monitoring (Prometheus & Grafana)
+### Langkah cepat menyalakan monitoring (Prometheus, Grafana, cAdvisor)
 
-1) Pastikan seluruh layanan jalan
+1) Buat network eksternal (jika belum)
 
 ```bash
-docker compose -f microservices/docker-compose.worker-pools.yml up -d
-docker compose -f microservices/docker-compose.worker-pools.yml ps
+docker network create avalanche-net-pool 2>/dev/null || true
 ```
 
-2) Buka Prometheus untuk verifikasi target
+2) Jalankan seluruh stack worker + monitoring dari satu compose
 
-- Buka `http://localhost:9090`
-- Klik menu Status → Targets, pastikan status Up untuk:
-  - `consensus-workers`, `validator-workers`, `dag-state-workers`
-  - `api-gateway`, `worker-monitor`, `cadvisor`
+```bash
+cd microservices
+docker compose -f docker-compose.worker-pools.yml up -d
+```
 
-3) Coba query metrik di Prometheus (Examples)
+3) Verifikasi endpoint
 
-- CPU rata-rata per container (approx %):
+```bash
+curl -sSf http://localhost:9090 >/dev/null && echo Prometheus OK
+curl -sSf http://localhost:3000 >/dev/null && echo Grafana OK
+curl -sSf http://localhost:8084 >/dev/null && echo cAdvisor OK
+```
+
+Grafana otomatis memuat Data Source Prometheus dan dashboard `worker-pools-dashboard.json` melalui provisioning. Jika belum tampil, tunggu 10–20 detik setelah container Grafana up.
+
+### Alternatif: Jalankan monitoring stack lengkap
+
+Gunakan skrip otomatis yang juga membuat konfigurasi provisioning bila folder kosong.
+
+- Linux/macOS: `./start-monitoring.sh`
+- Windows: `./start-monitoring.ps1`
+
+Skrip akan:
+- Membuat direktori: `monitoring/grafana/provisioning`, `monitoring/grafana/dashboards`, dsb.
+- Menulis file provisioning datasource dan dashboard provider.
+- Menyalakan compose `docker-compose.monitoring.yml` dan menunggu service siap.
+- Mengimpor dashboard default secara otomatis.
+
+### Prometheus scrape targets yang aktif
+
+Konfigurasi scrape yang dipakai di `monitoring/prometheus-worker.yml` meliputi:
+- `consensus-workers` → consensus-worker:8080/metrics
+- `validator-workers` → validator-worker:8081/metrics
+- `dag-state-workers` → dag-state-worker:8082/metrics
+- `api-gateway` → api-gateway:9750/metrics
+- `cadvisor` → cadvisor:8080/metrics
+- `worker-monitor` → worker-monitor:8080/metrics (opsional)
+- `load-balancers` → haproxy:8404/stats/prometheus
+
+Catatan:
+- Scrape untuk Redis/Postgres langsung ke port service dihapus agar tidak muncul target DOWN. Gunakan exporter (redis-exporter, postgres-exporter) pada `docker-compose.monitoring.yml` bila diperlukan.
+
+### Query contoh di Prometheus
+
+- CPU per container (%):
   - `sum by (name) (rate(container_cpu_usage_seconds_total[1m])) * 100`
 - Memory per container (MB):
   - `sum by (name) (container_memory_working_set_bytes) / 1024 / 1024`
-- Kedalaman antrean per worker queue:
-  - `worker_queue_depth{queue_name=~"validation_.*|consensus_.*|dag_.*"}`
-- P95 waktu proses per jenis worker (histogram dari worker-monitor):
+- P95 waktu proses per worker_type:
   - `histogram_quantile(0.95, sum(rate(worker_processing_time_seconds_bucket[5m])) by (le, worker_type))`
 
-4) Buka Grafana dan hubungkan ke Prometheus
+### Akses Grafana
 
-- Buka `http://localhost:3000` (username/password default: `admin/admin`)
-- Menu Connections → Data sources → Add data source → Prometheus
-- URL: `http://prometheus:9090` (atau `http://localhost:9090` jika ingin via host)
-- Save & test (harus `Data source is working`)
+- URL: `http://localhost:3000`
+- Credentials: `admin/admin`
+- Dashboard: pilih `worker-pools-dashboard.json` sebagai Home atau import manual di menu Dashboards bila perlu
 
-5) Import dashboard siap pakai
+### Korelasi dengan benchmark
 
-- Menu Dashboards → New → Import
-- Upload file `microservices/monitoring/dashboards/worker-pools-dashboard.json`
-- Klik Load → Pilih data source Prometheus yang baru dibuat → Import
+1) Jalankan benchmark:
+   - PowerShell: `./microservices/scripts/benchmark/run-parallel-vs-monolithic.ps1 -Profile paper`
+   - Bash: `PROFILE=paper ./microservices/scripts/benchmark/run-parallel-vs-monolithic.sh`
+2) Atur time range Grafana ke `Last 15 minutes` saat benchmark berjalan
+3) Amati panel CPU/Mem (cAdvisor) dan latency/throughput (worker-monitor/Prometheus)
 
-6) Tambah panel ad‑hoc untuk CPU & Memori (opsional)
+### Lokasi hasil benchmark untuk laporan
 
-- Panel CPU (%) per container:
-  - Query: `sum by (name) (rate(container_cpu_usage_seconds_total[1m])) * 100`
-  - Unit: Percent (0-100)
-- Panel Memory (MB) per container:
-  - Query: `sum by (name) (container_memory_working_set_bytes) / 1024 / 1024`
-  - Unit: Megabytes (SI)
-- Panel P95 processing time per worker_type:
-  - Query: `histogram_quantile(0.95, sum(rate(worker_processing_time_seconds_bucket[5m])) by (le, worker_type))`
-  - Unit: Seconds
-
-7) Korelasikan dengan benchmark
-
-- Jalankan benchmark:
-  - PowerShell: `./microservices/scripts/benchmark/run-parallel-vs-monolithic.ps1`
-  - Bash: `./microservices/scripts/benchmark/run-parallel-vs-monolithic.sh`
-- Ubah time range Grafana ke `Last 15 minutes` atau `Last 1 hour` ketika tes berjalan
-- Lihat spike CPU/Mem pada panel cAdvisor, dan latensi pada panel worker-monitor
-
-8) Hasil file untuk laporan (sesuai slide antarmuka)
-
-- JSON & Markdown hasil benchmark utama + CPU/Mem tersimpan di:
-  - `microservices/scripts/benchmark/benchmark-results/parallel-vs-monolithic_*.{json,md,csv}`
-  - `microservices/scripts/benchmark/benchmark-results/cluster-cpu-mem_*.{json,md}`
-- Grafik speedup:
-  - `microservices/scripts/benchmark/benchmark-graphs/speedup_workers_*.png`
+- `microservices/scripts/benchmark/benchmark-results/parallel-vs-monolithic_*.{json,md,csv}`
+- `microservices/scripts/benchmark/benchmark-results/cluster-cpu-mem_*.{json,md}`
+- `microservices/scripts/benchmark/benchmark-results/resource-utilization_full-matrix_*.{json,md,csv}`
+- Grafik: `microservices/scripts/benchmark/benchmark-graphs/speedup_workers_*.png`
 
 ### Dashboard Access
 

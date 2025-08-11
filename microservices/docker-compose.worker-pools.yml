@@ -261,11 +261,15 @@ services:
     image: grafana/grafana:10.0.3
     container_name: avalanche-grafana
     volumes:
+      # Dashboards JSON files loaded at startup
       - ./monitoring/dashboards:/var/lib/grafana/dashboards
+      # Provisioning (preload Prometheus datasource and dashboard provider)
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/datasources:/etc/grafana/provisioning/datasources
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/worker-pools-dashboard.json
     ports:
       - "3000:3000"
     networks:

@@ -43,19 +43,8 @@ scrape_configs:
     metrics_path: /metrics
     scrape_interval: 30s
 
-  # Redis Monitoring
-  - job_name: 'redis'
-    static_configs:
-      - targets: ['redis:6379']
-    metrics_path: /metrics
-    scrape_interval: 30s
-
-  # PostgreSQL Monitoring
-  - job_name: 'postgres'
-    static_configs:
-      - targets: ['postgres:5432']
-    metrics_path: /metrics
-    scrape_interval: 60s
+  # (Optional) Redis / Postgres exporters can be added via docker-compose.monitoring.yml
+  # Remove invalid direct scrapes to service ports without exporters to avoid DOWN targets
 
   # cAdvisor (container CPU/Memory)
   - job_name: 'cadvisor'
@@ -75,8 +64,8 @@ scrape_configs:
   - job_name: 'load-balancers'
     static_configs:
       - targets:
-          - 'consensus-worker-lb:8404'
-          - 'validator-worker-lb:8404'
-          - 'dag-state-worker-lb:8404'
+          - 'consensus-haproxy:8404'
+          - 'validator-haproxy:8404'
+          - 'dag-state-haproxy:8404'
     metrics_path: /stats/prometheus
     scrape_interval: 30s 
